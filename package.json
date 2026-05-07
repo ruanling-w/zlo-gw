@@ -3,7 +3,7 @@
   "version": "2.0.3",
   "description": "OpenClaw channel plugin for Zalo personal accounts via zca-js",
   "type": "module",
-  "main": "index.ts",
+  "main": "dist/index.js",
   "license": "MIT",
   "author": "monasprox",
   "repository": {
@@ -28,9 +28,13 @@
   "openclaw": {
     "extensions": [
       "./index.ts"
+    ],
+    "runtimeExtensions": [
+      "./dist/index.js"
     ]
   },
   "scripts": {
+    "build": "esbuild index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:openclaw --external:sharp --packages=external",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -49,6 +53,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "esbuild": "^0.28.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.4"
   }
