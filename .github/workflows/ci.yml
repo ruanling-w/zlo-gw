@@ -14,10 +14,15 @@ jobs:
         node-version: [22, 24]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
+          node-version-file: ''
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       - run: npm ci
       - name: TypeScript syntax check
         run: npx tsc --noEmit 2>&1; echo "TypeCheck exited with $?"
