@@ -89,6 +89,49 @@ describe("action registry", () => {
     expect(client.replies).toEqual([{ threadId: "thread-1", text: "reply", isGroup: undefined, messageId: "msg-1" }]);
   });
 
+
+
+  it("rejects send-like actions outside the gateway allowlist", async () => {
+    const client = new MockGatewayZaloClient();
+    const gateway = createGatewayServer({
+      config: {
+        host: "127.0.0.1",
+        port: 0,
+        token: "secret",
+        webhooks: [],
+        allowedSenders: ["allowed-user"],
+        allowedThreads: ["allowed-group"],
+        deniedSenders: [],
+        deniedThreads: [],
+      },
+      runtime: { name: "zalo-api-gateway", version: "0.1.0-test", node: "v-test" },
+      zaloClient: client,
+    });
+    await new Promise<void>((resolve, reject) => {
+      gateway.server.once("error", reject);
+      gateway.server.listen(0, "127.0.0.1", () => {
+        gateway.server.off("error", reject);
+        resolve();
+      });
+    });
+    openServers.push(gateway.server);
+    const address = gateway.server.address();
+    if (!address || typeof address === "string") throw new Error("Expected TCP server address");
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const blockedDm = await postAction(baseUrl, "send", { threadId: "unknown-user", text: "hello", isGroup: false }, "secret");
+    expect(blockedDm.status).toBe(403);
+    expect(await blockedDm.json()).toEqual({ ok: false, error: "Forbidden", reason: "sender_not_allowed" });
+
+    const blockedGroup = await postAction(baseUrl, "reply-message", { threadId: "unknown-group", text: "reply", isGroup: true }, "secret");
+    expect(blockedGroup.status).toBe(403);
+    expect(await blockedGroup.json()).toEqual({ ok: false, error: "Forbidden", reason: "thread_not_allowed" });
+
+    const allowed = await postAction(baseUrl, "send", { threadId: "allowed-user", text: "hello", isGroup: false }, "secret");
+    expect(allowed.status).toBe(200);
+    expect(client.sentMessages).toEqual([{ threadId: "allowed-user", text: "hello", isGroup: false }]);
+  });
+
   it("runs utility actions", async () => {
     const client = new MockGatewayZaloClient();
     client.groupMembers = [{ userId: "u1", displayName: "User 1" }];

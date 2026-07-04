@@ -97,6 +97,37 @@ describe("gateway inbound webhook wiring", () => {
     }
   });
 
+
+
+  it("blocks inbound events outside the gateway allowlist before webhook dispatch", async () => {
+    const fetchImpl = vi.fn(async () => new Response("ok", { status: 200 })) as unknown as typeof fetch;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchImpl;
+    const client = new MockGatewayZaloClient();
+    const gateway = createGatewayServer({
+      config: {
+        host: "127.0.0.1",
+        port: 0,
+        webhooks: ["http://hook.local/inbound"],
+        allowedSenders: ["other-user"],
+        allowedThreads: [],
+        deniedSenders: [],
+        deniedThreads: [],
+      },
+      runtime: { name: "zalo-api-gateway", version: "0.1.0-test", node: "v-test" },
+      zaloClient: client,
+    });
+    openServers.push(gateway.server);
+
+    try {
+      client.emit(event);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(fetchImpl).not.toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("disposes inbound subscription when server closes", async () => {
     const client = new MockGatewayZaloClient();
     const gateway = createGatewayServer({

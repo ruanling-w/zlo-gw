@@ -19,42 +19,48 @@ export function parsePolicyList(raw: string | undefined): string[] {
   return [...new Set(raw.split(",").map((item) => item.trim()).filter(Boolean))];
 }
 
-function matches(list: string[], value: string | undefined): boolean {
-  list = list ?? [];
-  if (list.includes(WILDCARD)) return true;
-  return Boolean(value && list.includes(value));
+function listValues(list: string[] | undefined): string[] {
+  return list ?? [];
 }
 
-function isConstrained(list: string[]): boolean {
-  list = list ?? [];
-  return list.length > 0 && !list.includes(WILDCARD);
+function matches(list: string[] | undefined, value: string | undefined): boolean {
+  const values = listValues(list);
+  if (values.includes(WILDCARD)) return true;
+  return Boolean(value && values.includes(value));
+}
+
+function hasConfiguredAllowlists(policy: GatewayPolicyConfig): boolean {
+  return Array.isArray(policy.allowedSenders) || Array.isArray(policy.allowedThreads);
+}
+
+function allowedSender(policy: GatewayPolicyConfig, senderId: string | undefined): boolean {
+  return matches(policy.allowedSenders, senderId);
+}
+
+function allowedThread(policy: GatewayPolicyConfig, threadId: string | undefined): boolean {
+  return matches(policy.allowedThreads, threadId);
 }
 
 export function decideInboundPolicy(event: NormalizedZaloEvent, policy: GatewayPolicyConfig): PolicyDecision {
   if (matches(policy.deniedSenders, event.senderId)) return { allowed: false, reason: "sender_denied" };
   if (matches(policy.deniedThreads, event.threadId)) return { allowed: false, reason: "thread_denied" };
-  if (isConstrained(policy.allowedSenders) && !matches(policy.allowedSenders, event.senderId)) {
-    return { allowed: false, reason: "sender_not_allowed" };
+  if (!hasConfiguredAllowlists(policy)) return { allowed: true };
+
+  if (event.chatType === "group") {
+    return allowedThread(policy, event.threadId) ? { allowed: true } : { allowed: false, reason: "thread_not_allowed" };
   }
-  if (isConstrained(policy.allowedThreads) && !matches(policy.allowedThreads, event.threadId)) {
-    return { allowed: false, reason: "thread_not_allowed" };
-  }
-  return { allowed: true };
+  return allowedSender(policy, event.senderId) ? { allowed: true } : { allowed: false, reason: "sender_not_allowed" };
 }
 
 export function decideOutboundPolicy(input: { threadId: string; isGroup?: boolean }, policy: GatewayPolicyConfig): PolicyDecision {
   if (matches(policy.deniedThreads, input.threadId)) return { allowed: false, reason: "thread_denied" };
+  if (!hasConfiguredAllowlists(policy)) return { allowed: true };
+
   if (input.isGroup) {
-    if (isConstrained(policy.allowedThreads) && !matches(policy.allowedThreads, input.threadId)) {
-      return { allowed: false, reason: "thread_not_allowed" };
-    }
-    return { allowed: true };
+    return allowedThread(policy, input.threadId) ? { allowed: true } : { allowed: false, reason: "thread_not_allowed" };
   }
   if (matches(policy.deniedSenders, input.threadId)) return { allowed: false, reason: "sender_denied" };
-  if (isConstrained(policy.allowedSenders) && !matches(policy.allowedSenders, input.threadId)) {
-    return { allowed: false, reason: "sender_not_allowed" };
-  }
-  return { allowed: true };
+  return allowedSender(policy, input.threadId) ? { allowed: true } : { allowed: false, reason: "sender_not_allowed" };
 }
 
 export function redactId(value: string | undefined): string {

@@ -1,5 +1,6 @@
 import type { IncomingMessage } from "node:http";
 import type { JsonResponse } from "../types.js";
+import { decideOutboundPolicy, type GatewayPolicyConfig } from "../policy.js";
 import type { GatewayZaloClient, SendTextInput } from "../zalo-client.js";
 
 export const SUPPORTED_ACTIONS = [
@@ -15,7 +16,12 @@ export const SUPPORTED_ACTIONS = [
 
 export type GatewayActionName = typeof SUPPORTED_ACTIONS[number];
 
-type ActionHandler = (payload: unknown, client: GatewayZaloClient) => Promise<JsonResponse>;
+type ActionContext = {
+  client: GatewayZaloClient;
+  policy?: GatewayPolicyConfig;
+};
+
+type ActionHandler = (payload: unknown, context: ActionContext) => Promise<JsonResponse>;
 
 const MAX_BODY_BYTES = 128 * 1024;
 
@@ -25,6 +31,16 @@ function json(status: number, body: unknown): JsonResponse {
 
 function error(status: number, message: string, details?: unknown): JsonResponse {
   return json(status, { ok: false, error: message, details });
+}
+
+function forbidden(reason: string | undefined): JsonResponse {
+  return json(403, { ok: false, error: "Forbidden", reason });
+}
+
+function checkOutbound(input: { threadId: string; isGroup?: boolean }, policy: GatewayPolicyConfig | undefined): JsonResponse | undefined {
+  if (!policy) return undefined;
+  const decision = decideOutboundPolicy(input, policy);
+  return decision.allowed ? undefined : forbidden(decision.reason);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -64,22 +80,26 @@ function sendTextInput(payload: unknown): { ok: true; value: SendTextInput } | {
   return { ok: true, value: { threadId, text, isGroup: optionalBoolean(payload, "isGroup") } };
 }
 
-async function send(payload: unknown, client: GatewayZaloClient): Promise<JsonResponse> {
+async function send(payload: unknown, context: ActionContext): Promise<JsonResponse> {
   const parsed = sendTextInput(payload);
   if (!parsed.ok) return parsed.response;
-  const result = await client.sendText(parsed.value);
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.sendText(parsed.value);
   return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
 }
 
-async function replyMessage(payload: unknown, client: GatewayZaloClient): Promise<JsonResponse> {
+async function replyMessage(payload: unknown, context: ActionContext): Promise<JsonResponse> {
   const parsed = sendTextInput(payload);
   if (!parsed.ok) return parsed.response;
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
   const messageId = isRecord(payload) ? requiredString(payload, "messageId") : undefined;
-  const result = await client.replyMessage({ ...parsed.value, messageId });
+  const result = await context.client.replyMessage({ ...parsed.value, messageId });
   return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
 }
 
-async function addReaction(payload: unknown, client: GatewayZaloClient): Promise<JsonResponse> {
+async function addReaction(payload: unknown, context: ActionContext): Promise<JsonResponse> {
   if (!isRecord(payload)) return error(400, "Request body must be a JSON object");
   const threadId = requiredString(payload, "threadId");
   const messageId = requiredString(payload, "messageId");
@@ -87,45 +107,51 @@ async function addReaction(payload: unknown, client: GatewayZaloClient): Promise
   if (!threadId) return error(400, "threadId is required");
   if (!messageId) return error(400, "messageId is required");
   if (!reaction) return error(400, "reaction is required");
-  const result = await client.addReaction({ threadId, messageId, reaction, isGroup: optionalBoolean(payload, "isGroup") });
+  const isGroup = optionalBoolean(payload, "isGroup");
+  const blocked = checkOutbound({ threadId, isGroup }, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.addReaction({ threadId, messageId, reaction, isGroup });
   return result.ok ? json(200, { ok: true, data: result.data ?? {} }) : error(502, result.error ?? "Action failed");
 }
 
-async function getThreadInfo(payload: unknown, client: GatewayZaloClient): Promise<JsonResponse> {
+async function getThreadInfo(payload: unknown, context: ActionContext): Promise<JsonResponse> {
   if (!isRecord(payload)) return error(400, "Request body must be a JSON object");
   const threadId = requiredString(payload, "threadId");
   if (!threadId) return error(400, "threadId is required");
-  const result = await client.getThreadInfo({ threadId, isGroup: optionalBoolean(payload, "isGroup") });
+  const result = await context.client.getThreadInfo({ threadId, isGroup: optionalBoolean(payload, "isGroup") });
   return result.ok ? json(200, { ok: true, data: result.data }) : error(502, result.error ?? "Action failed");
 }
 
-async function getGroupMembers(payload: unknown, client: GatewayZaloClient): Promise<JsonResponse> {
+async function getGroupMembers(payload: unknown, context: ActionContext): Promise<JsonResponse> {
   if (!isRecord(payload)) return error(400, "Request body must be a JSON object");
   const threadId = requiredString(payload, "threadId");
   if (!threadId) return error(400, "threadId is required");
-  const result = await client.getGroupMembers({ threadId });
+  const result = await context.client.getGroupMembers({ threadId });
   return result.ok ? json(200, { ok: true, data: result.data ?? [] }) : error(502, result.error ?? "Action failed");
 }
 
-async function listFriends(payload: unknown, client: GatewayZaloClient): Promise<JsonResponse> {
+async function listFriends(payload: unknown, context: ActionContext): Promise<JsonResponse> {
   const input = isRecord(payload) ? {
     count: typeof payload.count === "number" ? payload.count : undefined,
     page: typeof payload.page === "number" ? payload.page : undefined,
   } : undefined;
-  const result = await client.listFriends(input);
+  const result = await context.client.listFriends(input);
   return result.ok ? json(200, { ok: true, data: result.data ?? [] }) : error(502, result.error ?? "Action failed");
 }
 
-async function listGroups(_payload: unknown, client: GatewayZaloClient): Promise<JsonResponse> {
-  const result = await client.listGroups();
+async function listGroups(_payload: unknown, context: ActionContext): Promise<JsonResponse> {
+  const result = await context.client.listGroups();
   return result.ok ? json(200, { ok: true, data: result.data ?? [] }) : error(502, result.error ?? "Action failed");
 }
 
-async function markRead(payload: unknown, client: GatewayZaloClient): Promise<JsonResponse> {
+async function markRead(payload: unknown, context: ActionContext): Promise<JsonResponse> {
   if (!isRecord(payload)) return error(400, "Request body must be a JSON object");
   const threadId = requiredString(payload, "threadId");
   if (!threadId) return error(400, "threadId is required");
-  const result = await client.markRead({ threadId, isGroup: optionalBoolean(payload, "isGroup") });
+  const isGroup = optionalBoolean(payload, "isGroup");
+  const blocked = checkOutbound({ threadId, isGroup }, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.markRead({ threadId, isGroup });
   return result.ok ? json(200, { ok: true, data: result.data ?? {} }) : error(502, result.error ?? "Action failed");
 }
 
@@ -144,7 +170,7 @@ export function isSupportedAction(action: string): action is GatewayActionName {
   return Object.hasOwn(actionRegistry, action);
 }
 
-export async function actionResponse(action: string, request: IncomingMessage, client: GatewayZaloClient): Promise<JsonResponse> {
+export async function actionResponse(action: string, request: IncomingMessage, client: GatewayZaloClient, policy?: GatewayPolicyConfig): Promise<JsonResponse> {
   if (!isSupportedAction(action)) return error(404, `Unsupported action: ${action}`, { supported: SUPPORTED_ACTIONS });
   let payload: unknown;
   try {
@@ -152,5 +178,5 @@ export async function actionResponse(action: string, request: IncomingMessage, c
   } catch (err) {
     return error(400, err instanceof SyntaxError ? "Invalid JSON body" : err instanceof Error ? err.message : "Invalid request body");
   }
-  return actionRegistry[action](payload, client);
+  return actionRegistry[action](payload, { client, policy });
 }

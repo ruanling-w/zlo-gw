@@ -136,7 +136,7 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
         const action = decodeURIComponent(path.slice("/actions/".length));
-        return sendJson(response, await actionResponse(action, request, zaloClient));
+        return sendJson(response, await actionResponse(action, request, zaloClient, config));
       }
       return sendJson(response, notFound());
     } catch (err) {

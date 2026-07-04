@@ -267,23 +267,21 @@ The gateway is already able to receive messages and send replies. That is powerf
 Before enabling auto-reply, enforce allowlists for both inbound and outbound paths:
 
 ```bash
-# planned gateway-side config
+# gateway-side config
 ZALO_GATEWAY_ALLOWED_SENDERS=[REDACTED_USER_ID],[REDACTED_USER_ID]
 ZALO_GATEWAY_ALLOWED_THREADS=[REDACTED_THREAD_ID],[REDACTED_GROUP_ID]
 ZALO_GATEWAY_DENY_SENDERS=
 ZALO_GATEWAY_DENY_THREADS=
 ```
 
-Policy to implement:
+Implemented policy:
 
-- Direct messages: allow only when `senderId` is in `ZALO_GATEWAY_ALLOWED_SENDERS` or `threadId` is in `ZALO_GATEWAY_ALLOWED_THREADS`.
+- Direct messages: inbound allow checks `senderId`; outbound DM sends check the target `threadId` against `ZALO_GATEWAY_ALLOWED_SENDERS`.
 - Groups: allow only when the group/thread ID is in `ZALO_GATEWAY_ALLOWED_THREADS`.
 - Denylist wins over allowlist.
 - Drop unauthorized inbound events before webhook dispatch.
-- Reject unauthorized outbound `POST /messages/send` with `403`.
+- Reject unauthorized outbound `POST /messages/send` and send-like actions (`send`, `reply-message`, `add-reaction`, `mark-read`) with `403`.
 - Log allowed/blocked decisions without leaking message content by default.
-
-Until this is implemented, keep `ZALO_GATEWAY_WEBHOOKS` empty when testing with accounts/groups that should not trigger an agent.
 
 ## Logging Plan
 

@@ -81,6 +81,8 @@
 - Blocked inbound events are dropped and logged as `event=policy.inbound.blocked` with redacted IDs.
 - Allowed inbound events are logged as `event=policy.inbound.allowed` with redacted IDs.
 - `/messages/send` now rejects unauthorized outbound targets with `403` before calling the Zalo client.
+- Send-like curated actions (`send`, `reply-message`, `add-reaction`, `mark-read`) now share the outbound allowlist check and return `403` for non-allowed targets.
+- Direct-message receive/send requires `ZALO_GATEWAY_ALLOWED_SENDERS`; group receive/send requires `ZALO_GATEWAY_ALLOWED_THREADS`.
 - Webhook failure logging now uses stable event-style log `event=webhook.delivery.failed`.
 - `.env.example` now documents enforced gateway-side allowlist variables instead of planned placeholders.
 
@@ -90,21 +92,21 @@
 - Earlier full validation passed: `npm run typecheck && npm run test && npm run build && npm run gateway:build && npm run bridge:hermes:build && npm run zalo:login:build && npm run zalo:status:build`.
 - Login CLI build passed: `npm run zalo:login:build` bundles to `dist/zalo-login.js`.
 - Status CLI build passed: `npm run zalo:status:build` bundles to `dist/zalo-status.js`.
-- Latest verification after allowlist/logging cleanup: `npm run typecheck && npm run test` passed.
+- Latest verification after action allowlist completion: `npm run typecheck && npm run test` passed.
   - TypeScript compile check passed.
   - 19 test files passed.
-  - 146 tests passed.
+  - 148 tests passed.
 
 ## Risks And Notes
 
 - `npm install` reports 8 vulnerabilities; no `npm audit fix` was run.
 - Zalo personal automation is unofficial and can risk account checkpoint/ban.
 - Real Zalo testing must use a secondary account.
-- Gateway-side allowlists now exist for inbound webhooks and `/messages/send`, but curated action handlers that send or mutate Zalo state may need equivalent policy enforcement before broad exposure.
+- Gateway-side allowlists now exist for inbound webhooks, `/messages/send`, and send-like curated actions.
 - Keep Hermes core untouched; integration remains external through bridge/plugin clients that call the gateway.
 
 ## Next Step
 
-- Add focused policy tests for inbound blocked decisions and outbound `403` decisions if policy behavior expands.
-- Apply outbound policy helper to curated action handlers that can send or mutate Zalo state.
+- Add focused policy tests if more actions become send-like or mutating.
+- Review read-only directory/action endpoints to decide whether they should be scoped by the same allowlists.
 - Continue gateway hardening around rate limits, durable webhook retry/queueing, and production runbook details.

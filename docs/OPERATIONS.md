@@ -78,16 +78,18 @@ ZALO_GATEWAY_DENY_THREADS=
 Inbound policy:
 
 - If deny sender/thread matches, drop event.
-- If allowlists are empty, default should be safe mode: no auto-forward to agent unless explicitly configured otherwise.
-- If allowlists are set, forward only allowed sender/thread/group events.
+- If gateway-side allowlists are configured but empty, default is safe mode: no auto-forward to agent.
+- Direct messages require `senderId` in `ZALO_GATEWAY_ALLOWED_SENDERS`.
+- Group messages require `threadId`/group ID in `ZALO_GATEWAY_ALLOWED_THREADS`.
 - Log `policy.inbound.allowed` or `policy.inbound.blocked` without message text.
 
 Outbound policy:
 
-- `POST /messages/send` must check the target thread before sending.
+- `POST /messages/send` and send-like action routes (`send`, `reply-message`, `add-reaction`, `mark-read`) check the target before sending/mutating.
+- DM sends require target `threadId` in `ZALO_GATEWAY_ALLOWED_SENDERS`.
+- Group sends require target `threadId`/group ID in `ZALO_GATEWAY_ALLOWED_THREADS`.
 - Denylist wins.
 - Non-allowed target returns `403`.
-- Log `policy.outbound.blocked` without message text.
 
 ## Logging Standard
 
@@ -124,4 +126,4 @@ Before connecting Hermes or any auto-reply agent:
 - Unknown users/groups are blocked.
 - Logs show policy decisions.
 - A manual `POST /messages/send` to an allowed test thread works.
-- A manual `POST /messages/send` to a blocked test thread returns `403` after policy implementation.
+- A manual `POST /messages/send` or `POST /actions/send` to a blocked test target returns `403`.

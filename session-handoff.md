@@ -30,6 +30,7 @@
 - [x] Added `docs/OPERATIONS.md` runbook for gateway operation, webhook timeout triage, allowlist policy, logging standard, and pre-agent checklist.
 - [x] Updated `.env.example` with webhook timeout guidance and planned gateway-side allowlist variables.
 - [x] Added gateway-side allowlist policy for inbound webhook dispatch and outbound `/messages/send`.
+- [x] Extended gateway-side outbound allowlist policy to send-like actions: `send`, `reply-message`, `add-reaction`, and `mark-read`.
 - [x] Standardized policy/webhook failure logs with event-style names and redacted sender/thread IDs.
 
 ## Verification Evidence
@@ -42,7 +43,7 @@
 | Login CLI build | `npm run zalo:login:build` | PASS | Login CLI bundles to `dist/zalo-login.js`. |
 | Status CLI build | `npm run zalo:status:build` | PASS | Status CLI bundles to `dist/zalo-status.js`. |
 | Harness validation | `node /home/ruanling/.hermes/skills/autonomous-ai-agents/harness-creator/scripts/validate-harness.mjs --target /home/ruanling/code/zalo-api-gateway` | PASS | Score 87/100 after latest plan update; bottleneck is missing codebase_intelligence docs/profile. |
-| Allowlist cleanup | `npm run typecheck && npm run test` | PASS | Typecheck passed; 19 test files, 146 tests passed after policy/logging cleanup. |
+| Allowlist cleanup | `npm run typecheck && npm run test` | PASS | Typecheck passed; 19 test files, 148 tests passed after action allowlist completion. |
 
 ## Files Changed
 
@@ -108,14 +109,14 @@
 - Primary docs should describe Zalo API Gateway, not OpenClaw plugin usage.
 - Start with health/version, messaging, webhook, and curated action APIs instead of porting all 147 actions.
 - Track work as phases in `feature_list.json`, with only `phase-0-harness-baseline` active now.
-- Gateway-side allowlist and structured logging now exist for inbound webhooks and `/messages/send`.
+- Gateway-side allowlist and structured logging now exist for inbound webhooks, `/messages/send`, and send-like curated actions.
 
 ## Blockers / Risks
 
 - `npm install` reports 8 vulnerabilities; no audit fix was run.
 - Zalo personal automation is unofficial and can risk account checkpoint/ban.
 - Real Zalo testing must use a secondary account.
-- Curated action handlers that send or mutate Zalo state may still need explicit outbound policy checks before broad exposure.
+- Review read-only directory/action endpoints if they should also be scoped by allowlists before broad exposure.
 
 ## Next Session Startup
 
@@ -125,6 +126,6 @@
 
 ## Recommended Next Step
 
-- Add focused policy tests for inbound blocked decisions and outbound `403` decisions if policy behavior expands.
-- Apply outbound policy helper to curated action handlers that can send or mutate Zalo state.
+- Add focused policy tests if more actions become send-like or mutating.
+- Decide whether read-only directory/action endpoints should be scoped by the same allowlists.
 - Continue gateway hardening around rate limits, durable webhook retry/queueing, and production runbook details.
