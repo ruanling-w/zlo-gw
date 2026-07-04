@@ -80,6 +80,10 @@ Runtime API for external controllers/agents:
 ```bash
 GET /policy
 PUT /policy
+POST /policy/allowed-senders
+DELETE /policy/allowed-senders/:id
+POST /policy/allowed-threads
+DELETE /policy/allowed-threads/:id
 ```
 
 `PUT /policy` replaces the policy JSON persisted under `ZALO_GATEWAY_DATA_DIR/gateway-policy.json`, so an agent can choose allowed users/groups without editing gateway env.

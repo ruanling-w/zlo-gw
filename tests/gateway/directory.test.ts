@@ -43,25 +43,45 @@ describe("directory routes", () => {
 
   it("lists friends and groups", async () => {
     const client = new MockGatewayZaloClient();
-    client.friends = [{ userId: "u1", displayName: "User One", zaloName: "Zalo One" }];
-    client.groups = [{ groupId: "g1", name: "Group One", memberCount: 2 }];
+    client.friends = [
+      { userId: "u1", displayName: "User One", zaloName: "Zalo One" },
+      { userId: "u2", displayName: "Other User" },
+    ];
+    client.groups = [
+      { groupId: "g1", name: "Group One", memberCount: 2 },
+      { groupId: "g2", name: "Other Group", memberCount: 3 },
+    ];
     const baseUrl = await startServer(client);
 
     const friends = await fetch(`${baseUrl}/friends?count=10&page=1`, { headers: authHeaders() });
     expect(friends.status).toBe(200);
-    expect(await friends.json()).toEqual({ ok: true, data: [{ userId: "u1", displayName: "User One", zaloName: "Zalo One" }] });
+    expect(await friends.json()).toEqual({ ok: true, data: [
+      { userId: "u1", displayName: "User One", zaloName: "Zalo One" },
+      { userId: "u2", displayName: "Other User" },
+    ] });
+
+    const filteredFriends = await fetch(`${baseUrl}/friends?query=zalo`, { headers: authHeaders() });
+    expect(filteredFriends.status).toBe(200);
+    expect(await filteredFriends.json()).toEqual({ ok: true, data: [{ userId: "u1", displayName: "User One", zaloName: "Zalo One" }] });
 
     const groups = await fetch(`${baseUrl}/groups`, { headers: authHeaders() });
     expect(groups.status).toBe(200);
-    expect(await groups.json()).toEqual({ ok: true, data: [{ groupId: "g1", name: "Group One", memberCount: 2 }] });
+    expect(await groups.json()).toEqual({ ok: true, data: [
+      { groupId: "g1", name: "Group One", memberCount: 2 },
+      { groupId: "g2", name: "Other Group", memberCount: 3 },
+    ] });
+
+    const filteredGroups = await fetch(`${baseUrl}/groups?query=g1`, { headers: authHeaders() });
+    expect(filteredGroups.status).toBe(200);
+    expect(await filteredGroups.json()).toEqual({ ok: true, data: [{ groupId: "g1", name: "Group One", memberCount: 2 }] });
   });
 
   it("lists group members", async () => {
     const client = new MockGatewayZaloClient();
-    client.groupMembers = [{ userId: "u1", displayName: "User One" }];
+    client.groupMembers = [{ userId: "u1", displayName: "User One" }, { userId: "u2", displayName: "Other User" }];
     const baseUrl = await startServer(client);
 
-    const response = await fetch(`${baseUrl}/groups/group-1/members`, { headers: authHeaders() });
+    const response = await fetch(`${baseUrl}/groups/group-1/members?query=one`, { headers: authHeaders() });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, data: [{ userId: "u1", displayName: "User One" }] });

@@ -84,6 +84,9 @@
 - Send-like curated actions (`send`, `reply-message`, `add-reaction`, `mark-read`) now share the outbound allowlist check and return `403` for non-allowed targets.
 - Direct-message receive/send requires `ZALO_GATEWAY_ALLOWED_SENDERS`; group receive/send requires `ZALO_GATEWAY_ALLOWED_THREADS`.
 - Added authenticated `GET /policy` and `PUT /policy` for external controllers/agents to manage allowlists at runtime; policy persists to `ZALO_GATEWAY_DATA_DIR/gateway-policy.json`.
+- Added incremental policy convenience endpoints for allowed/denied sender/thread lists.
+- Added directory query filtering for friends, groups, and group members.
+- Registered requested next action names for attachments, message management, user lookup, group lookup, and conversation state; unsupported adapter paths return stable `502 not implemented` responses until real `zca-js` calls are wired.
 - Webhook failure logging now uses stable event-style log `event=webhook.delivery.failed`.
 - `.env.example` now documents enforced gateway-side allowlist variables instead of planned placeholders.
 
@@ -96,7 +99,7 @@
 - Latest verification after action allowlist completion: `npm run typecheck && npm run test` passed.
   - TypeScript compile check passed.
   - 20 test files passed.
-  - 150 tests passed.
+  - 151 tests passed.
 
 ## Risks And Notes
 

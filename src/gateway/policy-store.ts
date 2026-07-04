@@ -42,6 +42,18 @@ export class GatewayPolicyStore {
     return this.policy;
   }
 
+  add(key: keyof GatewayPolicyConfig, ids: string[]): GatewayPolicyConfig {
+    this.policy = normalizePolicyConfig({ ...this.policy, [key]: [...this.policy[key], ...ids] });
+    this.save();
+    return this.policy;
+  }
+
+  remove(key: keyof GatewayPolicyConfig, id: string): GatewayPolicyConfig {
+    this.policy = normalizePolicyConfig({ ...this.policy, [key]: this.policy[key].filter((item) => item !== id) });
+    this.save();
+    return this.policy;
+  }
+
   private load(fallback: GatewayPolicyConfig): GatewayPolicyConfig {
     if (!existsSync(this.path)) return normalizePolicyConfig(fallback);
     try {

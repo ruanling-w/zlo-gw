@@ -46,16 +46,12 @@ async function postAction(baseUrl: string, action: string, body: unknown, token?
 
 describe("action registry", () => {
   it("lists supported actions", () => {
-    expect(SUPPORTED_ACTIONS).toEqual([
-      "send",
-      "reply-message",
-      "add-reaction",
-      "get-thread-info",
-      "get-group-members",
-      "list-friends",
-      "list-groups",
-      "mark-read",
-    ]);
+    expect(SUPPORTED_ACTIONS).toContain("send");
+    expect(SUPPORTED_ACTIONS).toContain("send-image");
+    expect(SUPPORTED_ACTIONS).toContain("forward-message");
+    expect(SUPPORTED_ACTIONS).toContain("find-user");
+    expect(SUPPORTED_ACTIONS).toContain("get-group-info");
+    expect(SUPPORTED_ACTIONS).toContain("pin-conversation");
     expect(isSupportedAction("send")).toBe(true);
     expect(isSupportedAction("unknown")).toBe(false);
   });

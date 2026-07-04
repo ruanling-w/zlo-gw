@@ -10,7 +10,7 @@ import { actionResponse } from "./routes/actions.js";
 import { friendsResponse, groupMembersResponse, groupsResponse } from "./routes/directory.js";
 import { decideInboundPolicy, logPolicyDecision } from "./policy.js";
 import { GatewayPolicyStore } from "./policy-store.js";
-import { policyResponse } from "./routes/policy.js";
+import { policyListResponse, policyResponse } from "./routes/policy.js";
 
 export type GatewayServerOptions = {
   config?: GatewayConfig;
@@ -122,6 +122,18 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
         return sendJson(response, await policyResponse(request, policyStore));
       }
+      const policyListMatch = /^\/policy\/(allowed-senders|allowed-threads|denied-senders|denied-threads)(?:\/([^/]+))?$/.exec(path);
+      if (policyListMatch) {
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        const keyMap = {
+          "allowed-senders": "allowedSenders",
+          "allowed-threads": "allowedThreads",
+          "denied-senders": "deniedSenders",
+          "denied-threads": "deniedThreads",
+        } as const;
+        return sendJson(response, await policyListResponse(request, policyStore, keyMap[policyListMatch[1] as keyof typeof keyMap], policyListMatch[2]));
+      }
       if (path === "/friends") {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
@@ -132,14 +144,14 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
-        return sendJson(response, await groupsResponse(zaloClient));
+        return sendJson(response, await groupsResponse(url, zaloClient));
       }
       const groupMembersMatch = /^\/groups\/([^/]+)\/members$/.exec(path);
       if (groupMembersMatch) {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
-        return sendJson(response, await groupMembersResponse(decodeURIComponent(groupMembersMatch[1]), zaloClient));
+        return sendJson(response, await groupMembersResponse(decodeURIComponent(groupMembersMatch[1]), url, zaloClient));
       }
       if (path.startsWith("/actions/")) {
         if (request.method !== "POST") return sendJson(response, methodNotAllowed());

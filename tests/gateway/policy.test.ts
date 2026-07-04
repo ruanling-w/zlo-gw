@@ -22,6 +22,7 @@ afterEach(async () => {
     server.close((err) => err ? reject(err) : resolve());
   })));
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+
 });
 
 async function startServer(policyStore: GatewayPolicyStore, client = new MockGatewayZaloClient()) {
@@ -93,4 +94,27 @@ describe("gateway policy API", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, data: { ...basePolicy, allowedSenders: ["u1"] } });
   });
+
+  it("adds and removes allowlist entries incrementally", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "zalo-policy-"));
+    tempDirs.push(dir);
+    const store = new GatewayPolicyStore(basePolicy, join(dir, "policy.json"));
+    const { baseUrl } = await startServer(store);
+
+    const add = await fetch(`${baseUrl}/policy/allowed-senders`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ ids: ["u1", "u2", "u1"] }),
+    });
+    expect(add.status).toBe(200);
+    expect(await add.json()).toEqual({ ok: true, data: { ...basePolicy, allowedSenders: ["u1", "u2"] } });
+
+    const remove = await fetch(`${baseUrl}/policy/allowed-senders/u1`, {
+      method: "DELETE",
+      headers: { authorization: "Bearer secret" },
+    });
+    expect(remove.status).toBe(200);
+    expect(await remove.json()).toEqual({ ok: true, data: { ...basePolicy, allowedSenders: ["u2"] } });
+  });
+
 });

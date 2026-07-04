@@ -148,6 +148,12 @@ POST /messages/send
 GET  /friends
 GET  /groups
 GET  /groups/:groupId/members
+GET  /policy
+PUT  /policy
+POST /policy/allowed-senders
+DELETE /policy/allowed-senders/:id
+POST /policy/allowed-threads
+DELETE /policy/allowed-threads/:id
 POST /actions/:action
 ```
 
@@ -162,9 +168,26 @@ get-group-members
 list-friends
 list-groups
 mark-read
+send-image
+send-file
+send-link
+send-video
+delete-message
+undo-message
+forward-message
+find-user
+find-user-by-username
+get-user-info
+check-friend-status
+get-group-info
+get-group-members-info
+get-group-link
+mute-conversation
+mark-unread
+pin-conversation
 ```
 
-Some actions may return `502` with `not implemented` until the adapter supports that Zalo operation.
+Some newly registered actions currently return `502` with `not implemented` until the `zca-js` adapter call is wired.
 
 ## Curl Examples
 

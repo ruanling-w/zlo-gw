@@ -12,6 +12,23 @@ export const SUPPORTED_ACTIONS = [
   "list-friends",
   "list-groups",
   "mark-read",
+  "send-image",
+  "send-file",
+  "send-link",
+  "send-video",
+  "delete-message",
+  "undo-message",
+  "forward-message",
+  "find-user",
+  "find-user-by-username",
+  "get-user-info",
+  "check-friend-status",
+  "get-group-info",
+  "get-group-members-info",
+  "get-group-link",
+  "mute-conversation",
+  "mark-unread",
+  "pin-conversation",
 ] as const;
 
 export type GatewayActionName = typeof SUPPORTED_ACTIONS[number];
@@ -31,6 +48,10 @@ function json(status: number, body: unknown): JsonResponse {
 
 function error(status: number, message: string, details?: unknown): JsonResponse {
   return json(status, { ok: false, error: message, details });
+}
+
+function notImplemented(action: string): Promise<JsonResponse> {
+  return Promise.resolve(error(502, `${action} is not implemented for the zca-js gateway adapter yet`));
 }
 
 function forbidden(reason: string | undefined): JsonResponse {
@@ -155,6 +176,19 @@ async function markRead(payload: unknown, context: ActionContext): Promise<JsonR
   return result.ok ? json(200, { ok: true, data: result.data ?? {} }) : error(502, result.error ?? "Action failed");
 }
 
+async function getGroupInfo(payload: unknown, context: ActionContext): Promise<JsonResponse> {
+  return getThreadInfo(payload, context);
+}
+
+async function getGroupMembersInfo(payload: unknown, context: ActionContext): Promise<JsonResponse> {
+  return getGroupMembers(payload, context);
+}
+
+async function unsupportedAction(payload: unknown, _context: ActionContext): Promise<JsonResponse> {
+  const action = isRecord(payload) && typeof payload.action === "string" ? payload.action : "action";
+  return notImplemented(action);
+}
+
 export const actionRegistry: Record<GatewayActionName, ActionHandler> = {
   send,
   "reply-message": replyMessage,
@@ -164,6 +198,23 @@ export const actionRegistry: Record<GatewayActionName, ActionHandler> = {
   "list-friends": listFriends,
   "list-groups": listGroups,
   "mark-read": markRead,
+  "send-image": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "send-image" }, context),
+  "send-file": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "send-file" }, context),
+  "send-link": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "send-link" }, context),
+  "send-video": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "send-video" }, context),
+  "delete-message": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "delete-message" }, context),
+  "undo-message": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "undo-message" }, context),
+  "forward-message": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "forward-message" }, context),
+  "find-user": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "find-user" }, context),
+  "find-user-by-username": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "find-user-by-username" }, context),
+  "get-user-info": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "get-user-info" }, context),
+  "check-friend-status": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "check-friend-status" }, context),
+  "get-group-info": getGroupInfo,
+  "get-group-members-info": getGroupMembersInfo,
+  "get-group-link": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "get-group-link" }, context),
+  "mute-conversation": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "mute-conversation" }, context),
+  "mark-unread": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "mark-unread" }, context),
+  "pin-conversation": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "pin-conversation" }, context),
 };
 
 export function isSupportedAction(action: string): action is GatewayActionName {

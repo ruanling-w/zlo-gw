@@ -52,3 +52,27 @@ export async function policyResponse(request: IncomingMessage, store: GatewayPol
   if (!validated.ok) return validated.response;
   return json(200, { ok: true, data: store.update(validated.value) });
 }
+
+
+function idsPayload(payload: unknown): { ok: true; ids: string[] } | { ok: false; response: JsonResponse } {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return { ok: false, response: error(400, "Request body must be a JSON object") };
+  const ids = (payload as Record<string, unknown>).ids;
+  if (!Array.isArray(ids) || ids.some((item) => typeof item !== "string")) return { ok: false, response: error(400, "ids must be an array of strings") };
+  return { ok: true, ids: [...new Set(ids.map((item) => item.trim()).filter(Boolean))] };
+}
+
+export async function policyListResponse(request: IncomingMessage, store: GatewayPolicyStore, key: keyof ReturnType<GatewayPolicyStore["current"]>, id?: string): Promise<JsonResponse> {
+  if (request.method === "POST") {
+    let payload: unknown;
+    try {
+      payload = await readJson(request);
+    } catch (err) {
+      return error(400, err instanceof SyntaxError ? "Invalid JSON body" : err instanceof Error ? err.message : "Invalid request body");
+    }
+    const validated = idsPayload(payload);
+    if (!validated.ok) return validated.response;
+    return json(200, { ok: true, data: store.add(key, validated.ids) });
+  }
+  if (request.method === "DELETE" && id) return json(200, { ok: true, data: store.remove(key, decodeURIComponent(id)) });
+  return error(405, "Method not allowed");
+}
