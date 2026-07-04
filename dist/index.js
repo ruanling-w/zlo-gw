@@ -14,6 +14,61 @@ function requireBearerToken(request, expectedToken) {
   return { ok: false, status: 401, error: "Unauthorized" };
 }
 
+// src/gateway/policy.ts
+var WILDCARD = "*";
+function parsePolicyList(raw) {
+  if (!raw) return [];
+  return [...new Set(raw.split(",").map((item) => item.trim()).filter(Boolean))];
+}
+function listValues(list) {
+  return list ?? [];
+}
+function matches(list, value) {
+  const values = listValues(list);
+  if (values.includes(WILDCARD)) return true;
+  return Boolean(value && values.includes(value));
+}
+function hasConfiguredAllowlists(policy) {
+  return Array.isArray(policy.allowedSenders) || Array.isArray(policy.allowedThreads);
+}
+function allowedSender(policy, senderId) {
+  return matches(policy.allowedSenders, senderId);
+}
+function allowedThread(policy, threadId) {
+  return matches(policy.allowedThreads, threadId);
+}
+function decideInboundPolicy(event, policy) {
+  if (matches(policy.deniedSenders, event.senderId)) return { allowed: false, reason: "sender_denied" };
+  if (matches(policy.deniedThreads, event.threadId)) return { allowed: false, reason: "thread_denied" };
+  if (!hasConfiguredAllowlists(policy)) return { allowed: true };
+  if (event.chatType === "group") {
+    return allowedThread(policy, event.threadId) ? { allowed: true } : { allowed: false, reason: "thread_not_allowed" };
+  }
+  return allowedSender(policy, event.senderId) ? { allowed: true } : { allowed: false, reason: "sender_not_allowed" };
+}
+function decideOutboundPolicy(input, policy) {
+  if (matches(policy.deniedThreads, input.threadId)) return { allowed: false, reason: "thread_denied" };
+  if (!hasConfiguredAllowlists(policy)) return { allowed: true };
+  if (input.isGroup) {
+    return allowedThread(policy, input.threadId) ? { allowed: true } : { allowed: false, reason: "thread_not_allowed" };
+  }
+  if (matches(policy.deniedSenders, input.threadId)) return { allowed: false, reason: "sender_denied" };
+  return allowedSender(policy, input.threadId) ? { allowed: true } : { allowed: false, reason: "sender_not_allowed" };
+}
+function redactId(value) {
+  if (!value) return "[UNKNOWN]";
+  return "[REDACTED]";
+}
+function logPolicyDecision(event, decision, fields = {}) {
+  const parts = [
+    `[zalo-api-gateway] event=${event}`,
+    decision.reason ? `reason=${decision.reason}` : void 0,
+    `threadId=${redactId(fields.threadId)}`,
+    fields.senderId !== void 0 ? `senderId=${redactId(fields.senderId)}` : void 0
+  ].filter(Boolean);
+  console.log(parts.join(" "));
+}
+
 // src/gateway/config.ts
 var DEFAULT_HOST = "127.0.0.1";
 var DEFAULT_PORT = 8787;
@@ -35,7 +90,11 @@ function loadGatewayConfig(env = process.env) {
     port: parsePort(env.ZALO_GATEWAY_PORT),
     token: env.ZALO_GATEWAY_TOKEN?.trim() || void 0,
     webhookToken: env.ZALO_GATEWAY_WEBHOOK_TOKEN?.trim() || void 0,
-    webhooks: parseWebhooks(env.ZALO_GATEWAY_WEBHOOKS)
+    webhooks: parseWebhooks(env.ZALO_GATEWAY_WEBHOOKS),
+    allowedSenders: parsePolicyList(env.ZALO_GATEWAY_ALLOWED_SENDERS),
+    allowedThreads: parsePolicyList(env.ZALO_GATEWAY_ALLOWED_THREADS),
+    deniedSenders: parsePolicyList(env.ZALO_GATEWAY_DENY_SENDERS),
+    deniedThreads: parsePolicyList(env.ZALO_GATEWAY_DENY_THREADS)
   };
 }
 
@@ -60,6 +119,9 @@ function versionResponse(runtime) {
     body: runtime
   };
 }
+
+// src/gateway/zalo-client.ts
+import { ThreadType as ThreadType2 } from "zca-js";
 
 // src/client/zalo-client.ts
 import { Zalo, LoginQRCallbackEventType } from "zca-js";
@@ -516,7 +578,39 @@ function isLocalFilePath(str) {
 }
 
 // src/gateway/zalo-client.ts
+function normalizeAttachment(content) {
+  if (!content || typeof content !== "object" || Array.isArray(content)) return void 0;
+  const record = content;
+  const rawType = String(record.type ?? record.msgType ?? "").toLowerCase();
+  const href = typeof record.href === "string" ? record.href : typeof record.url === "string" ? record.url : void 0;
+  const title = typeof record.title === "string" ? record.title : void 0;
+  const description = typeof record.description === "string" ? record.description : void 0;
+  const type = rawType.includes("voice") || rawType.includes("audio") ? "voice" : rawType.includes("image") || rawType.includes("photo") ? "image" : rawType.includes("video") ? "video" : rawType.includes("link") ? "link" : rawType.includes("file") ? "file" : rawType.includes("sticker") ? "sticker" : href ? "unknown" : void 0;
+  return type ? { type, url: href, title, description, raw: content } : void 0;
+}
+function normalizeGatewayZaloEvent(message) {
+  if (message.isSelf) return void 0;
+  const content = message.data.content;
+  const attachment = normalizeAttachment(content);
+  const text = typeof content === "string" ? content : attachment?.title ?? attachment?.description ?? "";
+  if (!text.trim() && !attachment) return void 0;
+  const isGroup = message.type === ThreadType2.Group;
+  return {
+    type: "message.created",
+    platform: "zalo",
+    threadId: message.threadId,
+    messageId: message.data.msgId || message.data.cliMsgId,
+    senderId: isGroup ? message.data.uidFrom : message.threadId,
+    senderName: message.data.dName,
+    chatType: isGroup ? "group" : "dm",
+    text,
+    attachments: attachment ? [attachment] : void 0,
+    timestamp: message.data.ts ? Number.parseInt(message.data.ts, 10) : Date.now(),
+    raw: message
+  };
+}
 var ZcaGatewayZaloClient = class {
+  listenerStarted = false;
   async status() {
     let authenticated = isAuthenticated();
     if (!authenticated && hasStoredCredentials()) {
@@ -541,6 +635,11 @@ var ZcaGatewayZaloClient = class {
       threadId: input.threadId,
       error: result.error
     };
+  }
+  async sendVoice(input) {
+    const api = await getApi();
+    const result = await api.sendVoice({ voiceUrl: input.voiceUrl, ttl: input.ttl }, input.threadId, input.isGroup ? ThreadType2.Group : ThreadType2.User);
+    return { ok: true, messageId: result.msgId, threadId: input.threadId };
   }
   async replyMessage(input) {
     return this.sendText(input);
@@ -622,8 +721,30 @@ var ZcaGatewayZaloClient = class {
   async markRead(_input) {
     return { ok: false, error: "mark-read is not implemented for the zca-js adapter yet" };
   }
-  onMessage(_handler) {
-    return { dispose: () => void 0 };
+  onMessage(handler) {
+    let disposed = false;
+    let cleanup;
+    void getApi().then((api) => {
+      if (disposed) return;
+      const onRawMessage = (message) => {
+        const event = normalizeGatewayZaloEvent(message);
+        if (event) handler(event);
+      };
+      api.listener.on("message", onRawMessage);
+      cleanup = () => api.listener.off("message", onRawMessage);
+      if (!this.listenerStarted) {
+        api.listener.start({ retryOnClose: true });
+        this.listenerStarted = true;
+      }
+    }).catch((err) => {
+      console.warn(`[zalo-api-gateway] failed to start Zalo listener: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    return {
+      dispose: () => {
+        disposed = true;
+        cleanup?.();
+      }
+    };
   }
 };
 
@@ -643,10 +764,10 @@ async function readRequestBody(request) {
   }
   return Buffer.concat(chunks).toString("utf8");
 }
-function badRequest(error3, details) {
+function badRequest(error4, details) {
   return {
     status: 400,
-    body: { ok: false, error: error3, details }
+    body: { ok: false, error: error4, details }
   };
 }
 function validateSendMessagePayload(payload) {
@@ -675,7 +796,7 @@ function validateSendMessagePayload(payload) {
     }
   };
 }
-async function sendMessageResponse(request, zaloClient) {
+async function sendMessageResponse(request, zaloClient, policy) {
   let payload;
   try {
     const raw = await readRequestBody(request);
@@ -685,6 +806,13 @@ async function sendMessageResponse(request, zaloClient) {
   }
   const validated = validateSendMessagePayload(payload);
   if (!validated.ok) return validated.response;
+  const decision = policy ? decideOutboundPolicy(validated.value, policy) : { allowed: true };
+  if (!decision.allowed) {
+    return {
+      status: 403,
+      body: { ok: false, error: "Forbidden", reason: decision.reason }
+    };
+  }
   const result = await zaloClient.sendText(validated.value);
   if (!result.ok) {
     return {
@@ -780,7 +908,25 @@ var SUPPORTED_ACTIONS = [
   "get-group-members",
   "list-friends",
   "list-groups",
-  "mark-read"
+  "mark-read",
+  "send-image",
+  "send-file",
+  "send-link",
+  "send-video",
+  "send-voice",
+  "delete-message",
+  "undo-message",
+  "forward-message",
+  "find-user",
+  "find-user-by-username",
+  "get-user-info",
+  "check-friend-status",
+  "get-group-info",
+  "get-group-members-info",
+  "get-group-link",
+  "mute-conversation",
+  "mark-unread",
+  "pin-conversation"
 ];
 var MAX_BODY_BYTES2 = 128 * 1024;
 function json(status, body) {
@@ -788,6 +934,17 @@ function json(status, body) {
 }
 function error(status, message, details) {
   return json(status, { ok: false, error: message, details });
+}
+function notImplemented(action) {
+  return Promise.resolve(error(502, `${action} is not implemented for the zca-js gateway adapter yet`));
+}
+function forbidden(reason) {
+  return json(403, { ok: false, error: "Forbidden", reason });
+}
+function checkOutbound(input, policy) {
+  if (!policy) return void 0;
+  const decision = decideOutboundPolicy(input, policy);
+  return decision.allowed ? void 0 : forbidden(decision.reason);
 }
 function isRecord(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -821,20 +978,24 @@ function sendTextInput(payload) {
   if (payload.isGroup !== void 0 && typeof payload.isGroup !== "boolean") return { ok: false, response: error(400, "isGroup must be a boolean") };
   return { ok: true, value: { threadId, text, isGroup: optionalBoolean(payload, "isGroup") } };
 }
-async function send(payload, client) {
+async function send(payload, context) {
   const parsed = sendTextInput(payload);
   if (!parsed.ok) return parsed.response;
-  const result = await client.sendText(parsed.value);
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.sendText(parsed.value);
   return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
 }
-async function replyMessage(payload, client) {
+async function replyMessage(payload, context) {
   const parsed = sendTextInput(payload);
   if (!parsed.ok) return parsed.response;
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
   const messageId = isRecord(payload) ? requiredString(payload, "messageId") : void 0;
-  const result = await client.replyMessage({ ...parsed.value, messageId });
+  const result = await context.client.replyMessage({ ...parsed.value, messageId });
   return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
 }
-async function addReaction(payload, client) {
+async function addReaction(payload, context) {
   if (!isRecord(payload)) return error(400, "Request body must be a JSON object");
   const threadId = requiredString(payload, "threadId");
   const messageId = requiredString(payload, "messageId");
@@ -842,41 +1003,73 @@ async function addReaction(payload, client) {
   if (!threadId) return error(400, "threadId is required");
   if (!messageId) return error(400, "messageId is required");
   if (!reaction) return error(400, "reaction is required");
-  const result = await client.addReaction({ threadId, messageId, reaction, isGroup: optionalBoolean(payload, "isGroup") });
+  const isGroup = optionalBoolean(payload, "isGroup");
+  const blocked = checkOutbound({ threadId, isGroup }, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.addReaction({ threadId, messageId, reaction, isGroup });
   return result.ok ? json(200, { ok: true, data: result.data ?? {} }) : error(502, result.error ?? "Action failed");
 }
-async function getThreadInfo(payload, client) {
+async function getThreadInfo(payload, context) {
   if (!isRecord(payload)) return error(400, "Request body must be a JSON object");
   const threadId = requiredString(payload, "threadId");
   if (!threadId) return error(400, "threadId is required");
-  const result = await client.getThreadInfo({ threadId, isGroup: optionalBoolean(payload, "isGroup") });
+  const result = await context.client.getThreadInfo({ threadId, isGroup: optionalBoolean(payload, "isGroup") });
   return result.ok ? json(200, { ok: true, data: result.data }) : error(502, result.error ?? "Action failed");
 }
-async function getGroupMembers(payload, client) {
+async function getGroupMembers(payload, context) {
   if (!isRecord(payload)) return error(400, "Request body must be a JSON object");
   const threadId = requiredString(payload, "threadId");
   if (!threadId) return error(400, "threadId is required");
-  const result = await client.getGroupMembers({ threadId });
+  const result = await context.client.getGroupMembers({ threadId });
   return result.ok ? json(200, { ok: true, data: result.data ?? [] }) : error(502, result.error ?? "Action failed");
 }
-async function listFriends(payload, client) {
+async function listFriends(payload, context) {
   const input = isRecord(payload) ? {
     count: typeof payload.count === "number" ? payload.count : void 0,
     page: typeof payload.page === "number" ? payload.page : void 0
   } : void 0;
-  const result = await client.listFriends(input);
+  const result = await context.client.listFriends(input);
   return result.ok ? json(200, { ok: true, data: result.data ?? [] }) : error(502, result.error ?? "Action failed");
 }
-async function listGroups(_payload, client) {
-  const result = await client.listGroups();
+async function listGroups(_payload, context) {
+  const result = await context.client.listGroups();
   return result.ok ? json(200, { ok: true, data: result.data ?? [] }) : error(502, result.error ?? "Action failed");
 }
-async function markRead(payload, client) {
+async function markRead(payload, context) {
   if (!isRecord(payload)) return error(400, "Request body must be a JSON object");
   const threadId = requiredString(payload, "threadId");
   if (!threadId) return error(400, "threadId is required");
-  const result = await client.markRead({ threadId, isGroup: optionalBoolean(payload, "isGroup") });
+  const isGroup = optionalBoolean(payload, "isGroup");
+  const blocked = checkOutbound({ threadId, isGroup }, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.markRead({ threadId, isGroup });
   return result.ok ? json(200, { ok: true, data: result.data ?? {} }) : error(502, result.error ?? "Action failed");
+}
+function sendVoiceInput(payload) {
+  if (!isRecord(payload)) return { ok: false, response: error(400, "Request body must be a JSON object") };
+  const threadId = requiredString(payload, "threadId");
+  const voiceUrl = requiredString(payload, "voiceUrl");
+  if (!threadId) return { ok: false, response: error(400, "threadId is required") };
+  if (!voiceUrl) return { ok: false, response: error(400, "voiceUrl is required") };
+  return { ok: true, value: { threadId, voiceUrl, isGroup: optionalBoolean(payload, "isGroup"), ttl: typeof payload.ttl === "number" ? payload.ttl : void 0 } };
+}
+async function sendVoice(payload, context) {
+  const parsed = sendVoiceInput(payload);
+  if (!parsed.ok) return parsed.response;
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.sendVoice(parsed.value);
+  return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
+}
+async function getGroupInfo(payload, context) {
+  return getThreadInfo(payload, context);
+}
+async function getGroupMembersInfo(payload, context) {
+  return getGroupMembers(payload, context);
+}
+async function unsupportedAction(payload, _context) {
+  const action = isRecord(payload) && typeof payload.action === "string" ? payload.action : "action";
+  return notImplemented(action);
 }
 var actionRegistry = {
   send,
@@ -886,12 +1079,30 @@ var actionRegistry = {
   "get-group-members": getGroupMembers,
   "list-friends": listFriends,
   "list-groups": listGroups,
-  "mark-read": markRead
+  "mark-read": markRead,
+  "send-image": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "send-image" }, context),
+  "send-file": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "send-file" }, context),
+  "send-link": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "send-link" }, context),
+  "send-video": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "send-video" }, context),
+  "send-voice": sendVoice,
+  "delete-message": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "delete-message" }, context),
+  "undo-message": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "undo-message" }, context),
+  "forward-message": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "forward-message" }, context),
+  "find-user": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "find-user" }, context),
+  "find-user-by-username": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "find-user-by-username" }, context),
+  "get-user-info": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "get-user-info" }, context),
+  "check-friend-status": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "check-friend-status" }, context),
+  "get-group-info": getGroupInfo,
+  "get-group-members-info": getGroupMembersInfo,
+  "get-group-link": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "get-group-link" }, context),
+  "mute-conversation": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "mute-conversation" }, context),
+  "mark-unread": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "mark-unread" }, context),
+  "pin-conversation": (payload, context) => unsupportedAction({ ...isRecord(payload) ? payload : {}, action: "pin-conversation" }, context)
 };
 function isSupportedAction(action) {
   return Object.hasOwn(actionRegistry, action);
 }
-async function actionResponse(action, request, client) {
+async function actionResponse(action, request, client, policy) {
   if (!isSupportedAction(action)) return error(404, `Unsupported action: ${action}`, { supported: SUPPORTED_ACTIONS });
   let payload;
   try {
@@ -899,7 +1110,7 @@ async function actionResponse(action, request, client) {
   } catch (err) {
     return error(400, err instanceof SyntaxError ? "Invalid JSON body" : err instanceof Error ? err.message : "Invalid request body");
   }
-  return actionRegistry[action](payload, client);
+  return actionRegistry[action](payload, { client, policy });
 }
 
 // src/gateway/routes/directory.ts
@@ -914,21 +1125,167 @@ function parsePositiveInt(value) {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
 }
+function includesQuery(values, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return values.some((value) => value?.toLowerCase().includes(needle));
+}
+function filterFriends(items, query) {
+  return items.filter((item) => includesQuery([item.userId, item.displayName, item.zaloName, item.username], query));
+}
+function filterGroups(items, query) {
+  return items.filter((item) => includesQuery([item.groupId, item.name], query));
+}
+function filterMembers(items, query) {
+  return items.filter((item) => includesQuery([item.userId, item.displayName], query));
+}
 async function friendsResponse(url, client) {
   const result = await client.listFriends({
     count: parsePositiveInt(url.searchParams.get("count")),
     page: parsePositiveInt(url.searchParams.get("page"))
   });
-  return result.ok ? json2(200, { ok: true, data: result.data ?? [] }) : error2(502, result.error ?? "Failed to list friends");
+  if (!result.ok) return error2(502, result.error ?? "Failed to list friends");
+  const query = url.searchParams.get("query") ?? "";
+  return json2(200, { ok: true, data: filterFriends(result.data ?? [], query) });
 }
-async function groupsResponse(client) {
+async function groupsResponse(url, client) {
   const result = await client.listGroups();
-  return result.ok ? json2(200, { ok: true, data: result.data ?? [] }) : error2(502, result.error ?? "Failed to list groups");
+  if (!result.ok) return error2(502, result.error ?? "Failed to list groups");
+  const query = url.searchParams.get("query") ?? "";
+  return json2(200, { ok: true, data: filterGroups(result.data ?? [], query) });
 }
-async function groupMembersResponse(groupId, client) {
+async function groupMembersResponse(groupId, url, client) {
   if (!groupId) return error2(400, "groupId is required");
   const result = await client.getGroupMembers({ threadId: groupId });
-  return result.ok ? json2(200, { ok: true, data: result.data ?? [] }) : error2(502, result.error ?? "Failed to list group members");
+  if (!result.ok) return error2(502, result.error ?? "Failed to list group members");
+  const query = url.searchParams.get("query") ?? "";
+  return json2(200, { ok: true, data: filterMembers(result.data ?? [], query) });
+}
+
+// src/gateway/policy-store.ts
+import { existsSync as existsSync3, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { dirname as dirname2, join as join2 } from "node:path";
+var POLICY_FILE = "gateway-policy.json";
+function cleanList(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((item) => typeof item === "string" ? item.trim() : "").filter(Boolean))];
+}
+function policyPath(env = process.env) {
+  return join2(getGatewayDataDir(env), POLICY_FILE);
+}
+function normalizePolicyConfig(input) {
+  return {
+    allowedSenders: cleanList(input.allowedSenders),
+    allowedThreads: cleanList(input.allowedThreads),
+    deniedSenders: cleanList(input.deniedSenders),
+    deniedThreads: cleanList(input.deniedThreads)
+  };
+}
+var GatewayPolicyStore = class {
+  constructor(initialPolicy, path3 = policyPath()) {
+    this.path = path3;
+    this.policy = this.load(initialPolicy);
+  }
+  path;
+  policy;
+  current() {
+    return this.policy;
+  }
+  update(next) {
+    this.policy = normalizePolicyConfig({ ...this.policy, ...next });
+    this.save();
+    return this.policy;
+  }
+  add(key, ids) {
+    this.policy = normalizePolicyConfig({ ...this.policy, [key]: [...this.policy[key], ...ids] });
+    this.save();
+    return this.policy;
+  }
+  remove(key, id) {
+    this.policy = normalizePolicyConfig({ ...this.policy, [key]: this.policy[key].filter((item) => item !== id) });
+    this.save();
+    return this.policy;
+  }
+  load(fallback) {
+    if (!existsSync3(this.path)) return normalizePolicyConfig(fallback);
+    try {
+      return normalizePolicyConfig(JSON.parse(readFileSync2(this.path, "utf8")));
+    } catch {
+      return normalizePolicyConfig(fallback);
+    }
+  }
+  save() {
+    mkdirSync2(dirname2(this.path), { recursive: true });
+    writeFileSync2(this.path, `${JSON.stringify(this.policy, null, 2)}
+`, { mode: 384 });
+  }
+};
+
+// src/gateway/routes/policy.ts
+var MAX_BODY_BYTES3 = 64 * 1024;
+function json3(status, body) {
+  return { status, body };
+}
+function error3(status, message, details) {
+  return json3(status, { ok: false, error: message, details });
+}
+async function readJson(request) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (total > MAX_BODY_BYTES3) throw new Error("Request body too large");
+    chunks.push(buffer);
+  }
+  const raw = Buffer.concat(chunks).toString("utf8").trim();
+  return raw ? JSON.parse(raw) : {};
+}
+function validatePayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { ok: false, response: error3(400, "Request body must be a JSON object") };
+  }
+  const record = payload;
+  for (const key of ["allowedSenders", "allowedThreads", "deniedSenders", "deniedThreads"]) {
+    if (record[key] !== void 0 && (!Array.isArray(record[key]) || record[key].some((item) => typeof item !== "string"))) {
+      return { ok: false, response: error3(400, `${key} must be an array of strings`) };
+    }
+  }
+  return { ok: true, value: normalizePolicyConfig(record) };
+}
+async function policyResponse(request, store) {
+  if (request.method === "GET") return json3(200, { ok: true, data: store.current() });
+  if (request.method !== "PUT") return error3(405, "Method not allowed");
+  let payload;
+  try {
+    payload = await readJson(request);
+  } catch (err) {
+    return error3(400, err instanceof SyntaxError ? "Invalid JSON body" : err instanceof Error ? err.message : "Invalid request body");
+  }
+  const validated = validatePayload(payload);
+  if (!validated.ok) return validated.response;
+  return json3(200, { ok: true, data: store.update(validated.value) });
+}
+function idsPayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return { ok: false, response: error3(400, "Request body must be a JSON object") };
+  const ids = payload.ids;
+  if (!Array.isArray(ids) || ids.some((item) => typeof item !== "string")) return { ok: false, response: error3(400, "ids must be an array of strings") };
+  return { ok: true, ids: [...new Set(ids.map((item) => item.trim()).filter(Boolean))] };
+}
+async function policyListResponse(request, store, key, id) {
+  if (request.method === "POST") {
+    let payload;
+    try {
+      payload = await readJson(request);
+    } catch (err) {
+      return error3(400, err instanceof SyntaxError ? "Invalid JSON body" : err instanceof Error ? err.message : "Invalid request body");
+    }
+    const validated = idsPayload(payload);
+    if (!validated.ok) return validated.response;
+    return json3(200, { ok: true, data: store.add(key, validated.ids) });
+  }
+  if (request.method === "DELETE" && id) return json3(200, { ok: true, data: store.remove(key, decodeURIComponent(id)) });
+  return error3(405, "Method not allowed");
 }
 
 // src/gateway/server.ts
@@ -975,16 +1332,23 @@ function createGatewayServer(options = {}) {
   const runtime = options.runtime ?? defaultRuntime();
   const zaloClient = options.zaloClient ?? new ZcaGatewayZaloClient();
   const webhookDispatcher = new WebhookDispatcher(config.webhooks, { token: config.webhookToken });
+  const policyStore = options.policyStore ?? new GatewayPolicyStore(config);
   const getZaloStatus = options.getZaloStatus ?? (async () => {
     const status = await zaloClient.status();
     return { status: status.status, authenticated: status.authenticated };
   });
   const inboundSubscription = zaloClient.onMessage((event) => {
     if (!webhookDispatcher.hasTargets()) return;
+    const decision = decideInboundPolicy(event, policyStore.current());
+    if (!decision.allowed) {
+      logPolicyDecision("policy.inbound.blocked", decision, { threadId: event.threadId, senderId: event.senderId });
+      return;
+    }
+    logPolicyDecision("policy.inbound.allowed", decision, { threadId: event.threadId, senderId: event.senderId });
     void webhookDispatcher.dispatch(event).then((result) => {
       for (const delivery of result.delivered) {
         if (!delivery.ok) {
-          console.warn(`[zalo-api-gateway] webhook delivery failed url=${delivery.url} error=${delivery.error ?? delivery.status ?? "unknown"}`);
+          console.warn(`[zalo-api-gateway] event=webhook.delivery.failed url=${delivery.url} error=${delivery.error ?? delivery.status ?? "unknown"}`);
         }
       }
     });
@@ -1005,7 +1369,24 @@ function createGatewayServer(options = {}) {
         if (request.method !== "POST") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
-        return sendJson(response, await sendMessageResponse(request, zaloClient));
+        return sendJson(response, await sendMessageResponse(request, zaloClient, policyStore.current()));
+      }
+      if (path3 === "/policy") {
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        return sendJson(response, await policyResponse(request, policyStore));
+      }
+      const policyListMatch = /^\/policy\/(allowed-senders|allowed-threads|denied-senders|denied-threads)(?:\/([^/]+))?$/.exec(path3);
+      if (policyListMatch) {
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        const keyMap = {
+          "allowed-senders": "allowedSenders",
+          "allowed-threads": "allowedThreads",
+          "denied-senders": "deniedSenders",
+          "denied-threads": "deniedThreads"
+        };
+        return sendJson(response, await policyListResponse(request, policyStore, keyMap[policyListMatch[1]], policyListMatch[2]));
       }
       if (path3 === "/friends") {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
@@ -1017,21 +1398,21 @@ function createGatewayServer(options = {}) {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
-        return sendJson(response, await groupsResponse(zaloClient));
+        return sendJson(response, await groupsResponse(url, zaloClient));
       }
       const groupMembersMatch = /^\/groups\/([^/]+)\/members$/.exec(path3);
       if (groupMembersMatch) {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
-        return sendJson(response, await groupMembersResponse(decodeURIComponent(groupMembersMatch[1]), zaloClient));
+        return sendJson(response, await groupMembersResponse(decodeURIComponent(groupMembersMatch[1]), url, zaloClient));
       }
       if (path3.startsWith("/actions/")) {
         if (request.method !== "POST") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
         const action = decodeURIComponent(path3.slice("/actions/".length));
-        return sendJson(response, await actionResponse(action, request, zaloClient));
+        return sendJson(response, await actionResponse(action, request, zaloClient, policyStore.current()));
       }
       return sendJson(response, notFound());
     } catch (err) {
@@ -1045,7 +1426,7 @@ function createGatewayServer(options = {}) {
     }
   });
   server.once("close", () => inboundSubscription.dispose());
-  return { server, config, runtime, webhookDispatcher };
+  return { server, config, runtime, webhookDispatcher, policyStore };
 }
 async function listenGateway(options = {}) {
   const gateway = createGatewayServer(options);
@@ -1256,7 +1637,7 @@ function routePath(request) {
   const host = request.headers.host ?? "127.0.0.1";
   return new URL(request.url ?? "/", `http://${host}`).pathname;
 }
-async function readJson(request) {
+async function readJson2(request) {
   const chunks = [];
   for await (const chunk of request) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -1280,7 +1661,7 @@ function createHermesBridgeServer(options = {}) {
         if (request.method !== "POST") return sendJson2(response, { status: 405, body: { ok: false, error: "Method not allowed" } });
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson2(response, { status: auth.status, body: { ok: false, error: auth.error } });
-        const event = await readJson(request);
+        const event = await readJson2(request);
         const result = await orchestrator.process(event);
         return sendJson2(response, { status: result.ok ? 200 : 502, body: result });
       }
@@ -1315,6 +1696,7 @@ var MockGatewayZaloClient = class {
   currentStatus;
   handlers = /* @__PURE__ */ new Set();
   sentMessages = [];
+  sentVoices = [];
   replies = [];
   reactions = [];
   markReadCalls = [];
@@ -1336,6 +1718,15 @@ var MockGatewayZaloClient = class {
     return {
       ok: true,
       messageId: `mock-${this.sentMessages.length}`,
+      threadId: input.threadId,
+      ...this.nextSendResult
+    };
+  }
+  async sendVoice(input) {
+    this.sentVoices.push(input);
+    return {
+      ok: true,
+      messageId: `voice-${this.sentVoices.length}`,
       threadId: input.threadId,
       ...this.nextSendResult
     };
@@ -1388,7 +1779,7 @@ var MockGatewayZaloClient = class {
 };
 
 // src/zalo/message-normalizer.ts
-import { ThreadType as ThreadType2 } from "zca-js";
+import { ThreadType as ThreadType3 } from "zca-js";
 import * as crypto3 from "node:crypto";
 import * as fs5 from "node:fs";
 import sharp2 from "sharp";
@@ -1770,7 +2161,7 @@ function convertToZaloClawMessage(msg) {
   if (content && isSystemNotificationContent(content)) return null;
   if (!content.trim() && mediaUrls.length === 0) return null;
   const quote = data.quote;
-  const isGroup = msg.type === ThreadType2.Group;
+  const isGroup = msg.type === ThreadType3.Group;
   const threadId = msg.threadId;
   const rawSenderId = data.uidFrom;
   const senderId = !isGroup && (!rawSenderId?.trim() || !/^\d+$/.test(rawSenderId.trim())) ? threadId : rawSenderId;
