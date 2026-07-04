@@ -19,7 +19,7 @@ afterEach(async () => {
 async function startServer(options: { token?: string; client?: MockGatewayZaloClient } = {}) {
   const client = options.client ?? new MockGatewayZaloClient();
   const gateway = createGatewayServer({
-    config: { host: "127.0.0.1", port: 0, token: options.token, webhooks: [] },
+    config: { host: "127.0.0.1", port: 0, token: options.token, webhooks: [], allowedSenders: ["*"], allowedThreads: ["*"], deniedSenders: [], deniedThreads: [] },
     runtime: { name: "zalo-api-gateway", version: "0.1.0-test", node: "v-test" },
     zaloClient: client,
   });

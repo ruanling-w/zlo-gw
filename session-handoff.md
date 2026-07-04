@@ -31,6 +31,7 @@
 - [x] Updated `.env.example` with webhook timeout guidance and planned gateway-side allowlist variables.
 - [x] Added gateway-side allowlist policy for inbound webhook dispatch and outbound `/messages/send`.
 - [x] Extended gateway-side outbound allowlist policy to send-like actions: `send`, `reply-message`, `add-reaction`, and `mark-read`.
+- [x] Added authenticated runtime policy API (`GET /policy`, `PUT /policy`) so external agents can manage allowed users/groups without editing env.
 - [x] Standardized policy/webhook failure logs with event-style names and redacted sender/thread IDs.
 
 ## Verification Evidence
@@ -43,7 +44,7 @@
 | Login CLI build | `npm run zalo:login:build` | PASS | Login CLI bundles to `dist/zalo-login.js`. |
 | Status CLI build | `npm run zalo:status:build` | PASS | Status CLI bundles to `dist/zalo-status.js`. |
 | Harness validation | `node /home/ruanling/.hermes/skills/autonomous-ai-agents/harness-creator/scripts/validate-harness.mjs --target /home/ruanling/code/zalo-api-gateway` | PASS | Score 87/100 after latest plan update; bottleneck is missing codebase_intelligence docs/profile. |
-| Allowlist cleanup | `npm run typecheck && npm run test` | PASS | Typecheck passed; 19 test files, 148 tests passed after action allowlist completion. |
+| Allowlist cleanup | `npm run typecheck && npm run test` | PASS | Typecheck passed; 20 test files, 150 tests passed after runtime policy API. |
 
 ## Files Changed
 
@@ -70,6 +71,8 @@
 - `src/gateway/config.ts`
 - `src/gateway/auth.ts`
 - `src/gateway/policy.ts`
+- `src/gateway/policy-store.ts`
+- `src/gateway/routes/policy.ts`
 - `src/gateway/routes/health.ts`
 - `src/gateway/server.ts`
 - `src/gateway/index.ts`
@@ -84,6 +87,7 @@
 - `tests/gateway/webhooks.test.ts`
 - `src/gateway/routes/actions.ts`
 - `tests/gateway/actions.test.ts`
+- `tests/gateway/policy.test.ts`
 - `src/bridge/hermes/types.ts`
 - `src/bridge/hermes/config.ts`
 - `src/bridge/hermes/hermes-cli.ts`

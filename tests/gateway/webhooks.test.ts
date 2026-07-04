@@ -79,7 +79,7 @@ describe("gateway inbound webhook wiring", () => {
     globalThis.fetch = fetchImpl;
     const client = new MockGatewayZaloClient();
     const gateway = createGatewayServer({
-      config: { host: "127.0.0.1", port: 0, webhooks: ["http://hook.local/inbound"], webhookToken: "webhook-secret" },
+      config: { host: "127.0.0.1", port: 0, webhooks: ["http://hook.local/inbound"], webhookToken: "webhook-secret", allowedSenders: ["*"], allowedThreads: ["*"], deniedSenders: [], deniedThreads: [] },
       runtime: { name: "zalo-api-gateway", version: "0.1.0-test", node: "v-test" },
       zaloClient: client,
     });
@@ -131,7 +131,7 @@ describe("gateway inbound webhook wiring", () => {
   it("disposes inbound subscription when server closes", async () => {
     const client = new MockGatewayZaloClient();
     const gateway = createGatewayServer({
-      config: { host: "127.0.0.1", port: 0, webhooks: ["http://hook.local/inbound"] },
+      config: { host: "127.0.0.1", port: 0, webhooks: ["http://hook.local/inbound"], allowedSenders: ["*"], allowedThreads: ["*"], deniedSenders: [], deniedThreads: [] },
       runtime: { name: "zalo-api-gateway", version: "0.1.0-test", node: "v-test" },
       zaloClient: client,
     });

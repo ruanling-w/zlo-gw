@@ -75,6 +75,15 @@ ZALO_GATEWAY_DENY_SENDERS=
 ZALO_GATEWAY_DENY_THREADS=
 ```
 
+Runtime API for external controllers/agents:
+
+```bash
+GET /policy
+PUT /policy
+```
+
+`PUT /policy` replaces the policy JSON persisted under `ZALO_GATEWAY_DATA_DIR/gateway-policy.json`, so an agent can choose allowed users/groups without editing gateway env.
+
 Inbound policy:
 
 - If deny sender/thread matches, drop event.

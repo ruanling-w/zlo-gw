@@ -9,11 +9,14 @@ import { WebhookDispatcher } from "./webhooks.js";
 import { actionResponse } from "./routes/actions.js";
 import { friendsResponse, groupMembersResponse, groupsResponse } from "./routes/directory.js";
 import { decideInboundPolicy, logPolicyDecision } from "./policy.js";
+import { GatewayPolicyStore } from "./policy-store.js";
+import { policyResponse } from "./routes/policy.js";
 
 export type GatewayServerOptions = {
   config?: GatewayConfig;
   runtime?: GatewayRuntimeInfo;
   zaloClient?: GatewayZaloClient;
+  policyStore?: GatewayPolicyStore;
   getZaloStatus?: () => Promise<{ status: ZaloConnectionStatus; authenticated: boolean }> | { status: ZaloConnectionStatus; authenticated: boolean };
 };
 
@@ -22,6 +25,7 @@ export type GatewayServer = {
   config: GatewayConfig;
   runtime: GatewayRuntimeInfo;
   webhookDispatcher: WebhookDispatcher;
+  policyStore: GatewayPolicyStore;
 };
 
 function defaultRuntime(): GatewayRuntimeInfo {
@@ -72,6 +76,7 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
   const runtime = options.runtime ?? defaultRuntime();
   const zaloClient = options.zaloClient ?? new ZcaGatewayZaloClient();
   const webhookDispatcher = new WebhookDispatcher(config.webhooks, { token: config.webhookToken });
+  const policyStore = options.policyStore ?? new GatewayPolicyStore(config);
   const getZaloStatus = options.getZaloStatus ?? (async () => {
     const status = await zaloClient.status();
     return { status: status.status, authenticated: status.authenticated };
@@ -79,7 +84,7 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
 
   const inboundSubscription = zaloClient.onMessage((event) => {
     if (!webhookDispatcher.hasTargets()) return;
-    const decision = decideInboundPolicy(event, config);
+    const decision = decideInboundPolicy(event, policyStore.current());
     if (!decision.allowed) {
       logPolicyDecision("policy.inbound.blocked", decision, { threadId: event.threadId, senderId: event.senderId });
       return;
@@ -110,7 +115,12 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
         if (request.method !== "POST") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
-        return sendJson(response, await sendMessageResponse(request, zaloClient, config));
+        return sendJson(response, await sendMessageResponse(request, zaloClient, policyStore.current()));
+      }
+      if (path === "/policy") {
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        return sendJson(response, await policyResponse(request, policyStore));
       }
       if (path === "/friends") {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
@@ -136,7 +146,7 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
         const action = decodeURIComponent(path.slice("/actions/".length));
-        return sendJson(response, await actionResponse(action, request, zaloClient, config));
+        return sendJson(response, await actionResponse(action, request, zaloClient, policyStore.current()));
       }
       return sendJson(response, notFound());
     } catch (err) {
@@ -152,7 +162,7 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
 
   server.once("close", () => inboundSubscription.dispose());
 
-  return { server, config, runtime, webhookDispatcher };
+  return { server, config, runtime, webhookDispatcher, policyStore };
 }
 
 export async function listenGateway(options: GatewayServerOptions = {}): Promise<GatewayServer> {

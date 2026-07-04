@@ -274,6 +274,15 @@ ZALO_GATEWAY_DENY_SENDERS=
 ZALO_GATEWAY_DENY_THREADS=
 ```
 
+The allowlist can also be managed at runtime by authenticated API clients, so an external agent can choose which users/groups are active without editing gateway env:
+
+```bash
+curl -X PUT http://127.0.0.1:8787/policy \
+  -H "authorization: Bearer $ZALO_GATEWAY_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"allowedSenders":["[REDACTED_USER_ID]"],"allowedThreads":["[REDACTED_GROUP_ID]"]}'
+```
+
 Implemented policy:
 
 - Direct messages: inbound allow checks `senderId`; outbound DM sends check the target `threadId` against `ZALO_GATEWAY_ALLOWED_SENDERS`.

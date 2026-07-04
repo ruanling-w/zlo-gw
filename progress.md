@@ -83,6 +83,7 @@
 - `/messages/send` now rejects unauthorized outbound targets with `403` before calling the Zalo client.
 - Send-like curated actions (`send`, `reply-message`, `add-reaction`, `mark-read`) now share the outbound allowlist check and return `403` for non-allowed targets.
 - Direct-message receive/send requires `ZALO_GATEWAY_ALLOWED_SENDERS`; group receive/send requires `ZALO_GATEWAY_ALLOWED_THREADS`.
+- Added authenticated `GET /policy` and `PUT /policy` for external controllers/agents to manage allowlists at runtime; policy persists to `ZALO_GATEWAY_DATA_DIR/gateway-policy.json`.
 - Webhook failure logging now uses stable event-style log `event=webhook.delivery.failed`.
 - `.env.example` now documents enforced gateway-side allowlist variables instead of planned placeholders.
 
@@ -94,8 +95,8 @@
 - Status CLI build passed: `npm run zalo:status:build` bundles to `dist/zalo-status.js`.
 - Latest verification after action allowlist completion: `npm run typecheck && npm run test` passed.
   - TypeScript compile check passed.
-  - 19 test files passed.
-  - 148 tests passed.
+  - 20 test files passed.
+  - 150 tests passed.
 
 ## Risks And Notes
 
