@@ -36,6 +36,7 @@
 - [x] Added inbound voice/media attachment normalization and wired outbound `send-voice` through the gateway client boundary.
 - [x] Wired media send actions: `send-image`, `send-file`, `send-link`, and `send-video`.
 - [x] Added Hermes bridge connection endpoints for Zalo QR login orchestration.
+- [x] Split production runtime so Docker runs standalone Zalo Gateway and Hermes connector runs on the host.
 - [x] Added one-command app entrypoint, Dockerfile, QR login API endpoints, and cleaned production action registry to wired actions only.
 - [x] Standardized policy/webhook failure logs with event-style names and redacted sender/thread IDs.
 

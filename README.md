@@ -108,18 +108,20 @@ Stored credentials should live under the runtime data directory. Treat them as s
 
 ## Run Gateway
 
-Recommended packaged startup runs the Zalo gateway and Hermes bridge together:
+Recommended Docker/runtime startup runs the standalone Zalo gateway only:
 
 ```bash
 npm run build:all
-npm start
-```
-
-For gateway-only development:
-
-```bash
 npm run gateway
 ```
+
+Run the Hermes Zalo connector on the host where Hermes CLI/session data exists:
+
+```bash
+npm run connector:hermes
+```
+
+`npm start` still runs the combined local app for development, but production Docker uses `dist/gateway.js` so it does not need Hermes CLI inside the container.
 
 Expected startup log:
 
@@ -134,6 +136,37 @@ If you see repeated lines like this:
 ```
 
 it means `ZALO_GATEWAY_WEBHOOKS` points to a receiver that is not responding. Either start the receiver, fix the URL/port, or temporarily clear `ZALO_GATEWAY_WEBHOOKS` while testing the gateway alone.
+
+## Docker + Hermes Connector Topology
+
+Run Zalo Gateway in Docker:
+
+```bash
+docker build -t zalo-api-gateway:local .
+docker run --rm \
+  -p 8787:8787 \
+  -v zalo-gateway-data:/data \
+  --add-host=host.docker.internal:host-gateway \
+  --env-file .env \
+  zalo-api-gateway:local
+```
+
+Set the gateway webhook to the host-side connector:
+
+```bash
+ZALO_GATEWAY_WEBHOOKS=http://host.docker.internal:8790/webhooks/zalo
+```
+
+Run the Hermes connector on the host:
+
+```bash
+HERMES_BRIDGE_HOST=127.0.0.1 \
+HERMES_BRIDGE_PORT=8790 \
+ZALO_GATEWAY_URL=http://127.0.0.1:8787 \
+npm run connector:hermes
+```
+
+This keeps Hermes CLI outside Docker and avoids coupling Zalo Gateway updates to Hermes internals.
 
 ## API
 

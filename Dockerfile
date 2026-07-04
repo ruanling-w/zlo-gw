@@ -20,5 +20,5 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/README.md /app/LICENSE ./
 VOLUME ["/data"]
-EXPOSE 8787 8790
-CMD ["node", "dist/app.js"]
+EXPOSE 8787
+CMD ["node", "dist/gateway.js"]

@@ -39,6 +39,8 @@
     "gateway:build": "esbuild src/gateway/index.ts --bundle --platform=node --format=esm --outfile=dist/gateway.js --external:sharp --packages=external",
     "bridge:hermes": "tsx src/bridge/hermes/index.ts",
     "bridge:hermes:build": "esbuild src/bridge/hermes/index.ts --bundle --platform=node --format=esm --outfile=dist/hermes-bridge.js --external:sharp --packages=external",
+    "connector:hermes": "npm run bridge:hermes",
+    "connector:hermes:build": "npm run bridge:hermes:build",
     "zalo:login": "tsx src/cli/zalo-login.ts",
     "zalo:status": "tsx src/cli/zalo-status.ts",
     "zalo:login:build": "esbuild src/cli/zalo-login.ts --bundle --platform=node --format=esm --outfile=dist/zalo-login.js --external:sharp --packages=external",

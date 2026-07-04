@@ -2,17 +2,19 @@
 
 ## Runbook
 
-Recommended packaged startup runs the Zalo gateway and Hermes bridge together:
+Recommended production topology runs Zalo Gateway in Docker and Hermes connector on the host.
+
+Build and run the standalone gateway:
 
 ```bash
 npm run build:all
-npm start
+npm run gateway
 ```
 
-For gateway-only development:
+Run the connector where Hermes CLI is available:
 
 ```bash
-npm run gateway
+npm run connector:hermes
 ```
 
 Expected log:

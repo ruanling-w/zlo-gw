@@ -90,6 +90,7 @@
 - Added inbound attachment normalization for voice/media-like Zalo messages and wired outbound `send-voice` through `zca-js`.
 - Wired media send actions through `zca-js`: `send-image`, `send-file`, `send-link`, and `send-video`.
 - Added Hermes bridge connection endpoints that proxy Zalo QR login/status/image for Hermes-initiated onboarding.
+- Split production topology: Docker image now starts standalone Zalo Gateway; Hermes connector runs on the host with Hermes CLI access.
 - Added combined app entrypoint (`npm start` / `dist/app.js`) to run gateway and Hermes bridge with one command.
 - Added Dockerfile and `.dockerignore` for container packaging with `/data` volume.
 - Added authenticated QR login API endpoints: `POST /login/qr/start`, `GET /login/qr/status`, and `GET /login/qr/image`.
