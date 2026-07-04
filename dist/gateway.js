@@ -683,7 +683,31 @@ var ZcaGatewayZaloClient = class {
   async sendVoice(input) {
     const api = await getApi();
     const result = await api.sendVoice({ voiceUrl: input.voiceUrl, ttl: input.ttl }, input.threadId, input.isGroup ? ThreadType2.Group : ThreadType2.User);
-    return { ok: true, messageId: result.msgId, threadId: input.threadId };
+    return { ok: true, messageId: String(result.msgId), threadId: input.threadId };
+  }
+  async sendAttachment(input) {
+    const api = await getApi();
+    const result = await api.sendMessage({ msg: input.text ?? "", attachments: input.attachment, ttl: input.ttl }, input.threadId, input.isGroup ? ThreadType2.Group : ThreadType2.User);
+    const msgId = result.attachment[0]?.msgId ?? result.message?.msgId;
+    return { ok: true, messageId: msgId === void 0 ? void 0 : String(msgId), threadId: input.threadId };
+  }
+  async sendLink(input) {
+    const api = await getApi();
+    const result = await api.sendLink({ link: input.link, msg: input.text, ttl: input.ttl }, input.threadId, input.isGroup ? ThreadType2.Group : ThreadType2.User);
+    return { ok: true, messageId: String(result.msgId), threadId: input.threadId };
+  }
+  async sendVideo(input) {
+    const api = await getApi();
+    const result = await api.sendVideo({
+      videoUrl: input.videoUrl,
+      thumbnailUrl: input.thumbnailUrl,
+      msg: input.text,
+      ttl: input.ttl,
+      duration: input.duration,
+      width: input.width,
+      height: input.height
+    }, input.threadId, input.isGroup ? ThreadType2.Group : ThreadType2.User);
+    return { ok: true, messageId: String(result.msgId), threadId: input.threadId };
   }
   async replyMessage(input) {
     return this.sendText(input);
@@ -969,6 +993,10 @@ var SUPPORTED_ACTIONS = [
   "list-friends",
   "list-groups",
   "mark-read",
+  "send-image",
+  "send-file",
+  "send-link",
+  "send-video",
   "send-voice",
   "get-group-info",
   "get-group-members-info"
@@ -998,6 +1026,10 @@ function requiredString(record, key) {
 function optionalBoolean(record, key) {
   const value = record[key];
   return typeof value === "boolean" ? value : void 0;
+}
+function optionalNumber(record, key) {
+  const value = record[key];
+  return typeof value === "number" ? value : void 0;
 }
 async function readRequestBody2(request) {
   const chunks = [];
@@ -1087,6 +1119,64 @@ async function markRead(payload, context) {
   const result = await context.client.markRead({ threadId, isGroup });
   return result.ok ? json(200, { ok: true, data: result.data ?? {} }) : error(502, result.error ?? "Action failed");
 }
+function attachmentInput(payload, key) {
+  if (!isRecord(payload)) return { ok: false, response: error(400, "Request body must be a JSON object") };
+  const threadId = requiredString(payload, "threadId");
+  const attachment = requiredString(payload, key) ?? requiredString(payload, "attachment");
+  if (!threadId) return { ok: false, response: error(400, "threadId is required") };
+  if (!attachment) return { ok: false, response: error(400, `${key} is required`) };
+  return { ok: true, value: { threadId, attachment, text: typeof payload.text === "string" ? payload.text : void 0, isGroup: optionalBoolean(payload, "isGroup"), ttl: optionalNumber(payload, "ttl") } };
+}
+async function sendImage(payload, context) {
+  const parsed = attachmentInput(payload, "imageUrl");
+  if (!parsed.ok) return parsed.response;
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.sendAttachment(parsed.value);
+  return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
+}
+async function sendFile(payload, context) {
+  const parsed = attachmentInput(payload, "fileUrl");
+  if (!parsed.ok) return parsed.response;
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.sendAttachment(parsed.value);
+  return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
+}
+function linkInput(payload) {
+  if (!isRecord(payload)) return { ok: false, response: error(400, "Request body must be a JSON object") };
+  const threadId = requiredString(payload, "threadId");
+  const link = requiredString(payload, "link") ?? requiredString(payload, "url");
+  if (!threadId) return { ok: false, response: error(400, "threadId is required") };
+  if (!link) return { ok: false, response: error(400, "link is required") };
+  return { ok: true, value: { threadId, link, text: typeof payload.text === "string" ? payload.text : void 0, isGroup: optionalBoolean(payload, "isGroup"), ttl: optionalNumber(payload, "ttl") } };
+}
+async function sendLink(payload, context) {
+  const parsed = linkInput(payload);
+  if (!parsed.ok) return parsed.response;
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.sendLink(parsed.value);
+  return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
+}
+function videoInput(payload) {
+  if (!isRecord(payload)) return { ok: false, response: error(400, "Request body must be a JSON object") };
+  const threadId = requiredString(payload, "threadId");
+  const videoUrl = requiredString(payload, "videoUrl");
+  const thumbnailUrl = requiredString(payload, "thumbnailUrl");
+  if (!threadId) return { ok: false, response: error(400, "threadId is required") };
+  if (!videoUrl) return { ok: false, response: error(400, "videoUrl is required") };
+  if (!thumbnailUrl) return { ok: false, response: error(400, "thumbnailUrl is required") };
+  return { ok: true, value: { threadId, videoUrl, thumbnailUrl, text: typeof payload.text === "string" ? payload.text : void 0, isGroup: optionalBoolean(payload, "isGroup"), ttl: optionalNumber(payload, "ttl"), duration: optionalNumber(payload, "duration"), width: optionalNumber(payload, "width"), height: optionalNumber(payload, "height") } };
+}
+async function sendVideo(payload, context) {
+  const parsed = videoInput(payload);
+  if (!parsed.ok) return parsed.response;
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.sendVideo(parsed.value);
+  return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
+}
 function sendVoiceInput(payload) {
   if (!isRecord(payload)) return { ok: false, response: error(400, "Request body must be a JSON object") };
   const threadId = requiredString(payload, "threadId");
@@ -1118,6 +1208,10 @@ var actionRegistry = {
   "list-friends": listFriends,
   "list-groups": listGroups,
   "mark-read": markRead,
+  "send-image": sendImage,
+  "send-file": sendFile,
+  "send-link": sendLink,
+  "send-video": sendVideo,
   "send-voice": sendVoice,
   "get-group-info": getGroupInfo,
   "get-group-members-info": getGroupMembersInfo

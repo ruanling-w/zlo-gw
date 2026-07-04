@@ -1,7 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import type { JsonResponse } from "../types.js";
 import { decideOutboundPolicy, type GatewayPolicyConfig } from "../policy.js";
-import type { GatewayZaloClient, SendTextInput } from "../zalo-client.js";
+import type { GatewayZaloClient, SendAttachmentInput, SendLinkInput, SendTextInput, SendVideoInput } from "../zalo-client.js";
 
 export const SUPPORTED_ACTIONS = [
   "send",
@@ -12,6 +12,10 @@ export const SUPPORTED_ACTIONS = [
   "list-friends",
   "list-groups",
   "mark-read",
+  "send-image",
+  "send-file",
+  "send-link",
+  "send-video",
   "send-voice",
   "get-group-info",
   "get-group-members-info",
@@ -36,10 +40,6 @@ function error(status: number, message: string, details?: unknown): JsonResponse
   return json(status, { ok: false, error: message, details });
 }
 
-function notImplemented(action: string): Promise<JsonResponse> {
-  return Promise.resolve(error(502, `${action} is not implemented for the zca-js gateway adapter yet`));
-}
-
 function forbidden(reason: string | undefined): JsonResponse {
   return json(403, { ok: false, error: "Forbidden", reason });
 }
@@ -62,6 +62,11 @@ function requiredString(record: Record<string, unknown>, key: string): string | 
 function optionalBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
   const value = record[key];
   return typeof value === "boolean" ? value : undefined;
+}
+
+function optionalNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === "number" ? value : undefined;
 }
 
 async function readRequestBody(request: IncomingMessage): Promise<unknown> {
@@ -162,6 +167,71 @@ async function markRead(payload: unknown, context: ActionContext): Promise<JsonR
   return result.ok ? json(200, { ok: true, data: result.data ?? {} }) : error(502, result.error ?? "Action failed");
 }
 
+function attachmentInput(payload: unknown, key: "imageUrl" | "fileUrl"): { ok: true; value: SendAttachmentInput } | { ok: false; response: JsonResponse } {
+  if (!isRecord(payload)) return { ok: false, response: error(400, "Request body must be a JSON object") };
+  const threadId = requiredString(payload, "threadId");
+  const attachment = requiredString(payload, key) ?? requiredString(payload, "attachment");
+  if (!threadId) return { ok: false, response: error(400, "threadId is required") };
+  if (!attachment) return { ok: false, response: error(400, `${key} is required`) };
+  return { ok: true, value: { threadId, attachment, text: typeof payload.text === "string" ? payload.text : undefined, isGroup: optionalBoolean(payload, "isGroup"), ttl: optionalNumber(payload, "ttl") } };
+}
+
+async function sendImage(payload: unknown, context: ActionContext): Promise<JsonResponse> {
+  const parsed = attachmentInput(payload, "imageUrl");
+  if (!parsed.ok) return parsed.response;
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.sendAttachment(parsed.value);
+  return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
+}
+
+async function sendFile(payload: unknown, context: ActionContext): Promise<JsonResponse> {
+  const parsed = attachmentInput(payload, "fileUrl");
+  if (!parsed.ok) return parsed.response;
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.sendAttachment(parsed.value);
+  return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
+}
+
+function linkInput(payload: unknown): { ok: true; value: SendLinkInput } | { ok: false; response: JsonResponse } {
+  if (!isRecord(payload)) return { ok: false, response: error(400, "Request body must be a JSON object") };
+  const threadId = requiredString(payload, "threadId");
+  const link = requiredString(payload, "link") ?? requiredString(payload, "url");
+  if (!threadId) return { ok: false, response: error(400, "threadId is required") };
+  if (!link) return { ok: false, response: error(400, "link is required") };
+  return { ok: true, value: { threadId, link, text: typeof payload.text === "string" ? payload.text : undefined, isGroup: optionalBoolean(payload, "isGroup"), ttl: optionalNumber(payload, "ttl") } };
+}
+
+async function sendLink(payload: unknown, context: ActionContext): Promise<JsonResponse> {
+  const parsed = linkInput(payload);
+  if (!parsed.ok) return parsed.response;
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.sendLink(parsed.value);
+  return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
+}
+
+function videoInput(payload: unknown): { ok: true; value: SendVideoInput } | { ok: false; response: JsonResponse } {
+  if (!isRecord(payload)) return { ok: false, response: error(400, "Request body must be a JSON object") };
+  const threadId = requiredString(payload, "threadId");
+  const videoUrl = requiredString(payload, "videoUrl");
+  const thumbnailUrl = requiredString(payload, "thumbnailUrl");
+  if (!threadId) return { ok: false, response: error(400, "threadId is required") };
+  if (!videoUrl) return { ok: false, response: error(400, "videoUrl is required") };
+  if (!thumbnailUrl) return { ok: false, response: error(400, "thumbnailUrl is required") };
+  return { ok: true, value: { threadId, videoUrl, thumbnailUrl, text: typeof payload.text === "string" ? payload.text : undefined, isGroup: optionalBoolean(payload, "isGroup"), ttl: optionalNumber(payload, "ttl"), duration: optionalNumber(payload, "duration"), width: optionalNumber(payload, "width"), height: optionalNumber(payload, "height") } };
+}
+
+async function sendVideo(payload: unknown, context: ActionContext): Promise<JsonResponse> {
+  const parsed = videoInput(payload);
+  if (!parsed.ok) return parsed.response;
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.sendVideo(parsed.value);
+  return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
+}
+
 function sendVoiceInput(payload: unknown): { ok: true; value: { threadId: string; voiceUrl: string; isGroup?: boolean; ttl?: number } } | { ok: false; response: JsonResponse } {
   if (!isRecord(payload)) return { ok: false, response: error(400, "Request body must be a JSON object") };
   const threadId = requiredString(payload, "threadId");
@@ -197,6 +267,10 @@ export const actionRegistry: Record<GatewayActionName, ActionHandler> = {
   "list-friends": listFriends,
   "list-groups": listGroups,
   "mark-read": markRead,
+  "send-image": sendImage,
+  "send-file": sendFile,
+  "send-link": sendLink,
+  "send-video": sendVideo,
   "send-voice": sendVoice,
   "get-group-info": getGroupInfo,
   "get-group-members-info": getGroupMembersInfo,

@@ -180,6 +180,10 @@ get-group-members
 list-friends
 list-groups
 mark-read
+send-image
+send-file
+send-link
+send-video
 send-voice
 get-group-info
 get-group-members-info

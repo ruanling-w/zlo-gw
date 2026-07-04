@@ -6,8 +6,11 @@ import type {
   GroupMember,
   GroupSummary,
   NormalizedZaloEvent,
+  SendAttachmentInput,
+  SendLinkInput,
   SendMessageResult,
   SendTextInput,
+  SendVideoInput,
   SendVoiceInput,
   ThreadInfo,
   ZaloGatewayStatus,
@@ -17,6 +20,9 @@ export class MockGatewayZaloClient implements GatewayZaloClient {
   private handlers = new Set<(event: NormalizedZaloEvent) => void>();
   public sentMessages: SendTextInput[] = [];
   public sentVoices: SendVoiceInput[] = [];
+  public sentAttachments: SendAttachmentInput[] = [];
+  public sentLinks: SendLinkInput[] = [];
+  public sentVideos: SendVideoInput[] = [];
   public replies: Array<SendTextInput & { messageId?: string }> = [];
   public reactions: Array<{ threadId: string; messageId: string; reaction: string; isGroup?: boolean }> = [];
   public markReadCalls: Array<{ threadId: string; isGroup?: boolean }> = [];
@@ -60,6 +66,21 @@ export class MockGatewayZaloClient implements GatewayZaloClient {
       threadId: input.threadId,
       ...this.nextSendResult,
     };
+  }
+
+  async sendAttachment(input: SendAttachmentInput): Promise<SendMessageResult> {
+    this.sentAttachments.push(input);
+    return { ok: true, messageId: `attachment-${this.sentAttachments.length}`, threadId: input.threadId, ...this.nextSendResult };
+  }
+
+  async sendLink(input: SendLinkInput): Promise<SendMessageResult> {
+    this.sentLinks.push(input);
+    return { ok: true, messageId: `link-${this.sentLinks.length}`, threadId: input.threadId, ...this.nextSendResult };
+  }
+
+  async sendVideo(input: SendVideoInput): Promise<SendMessageResult> {
+    this.sentVideos.push(input);
+    return { ok: true, messageId: `video-${this.sentVideos.length}`, threadId: input.threadId, ...this.nextSendResult };
   }
 
   async replyMessage(input: SendTextInput & { messageId?: string }): Promise<SendMessageResult> {

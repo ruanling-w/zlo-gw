@@ -47,6 +47,10 @@ async function postAction(baseUrl: string, action: string, body: unknown, token?
 describe("action registry", () => {
   it("lists supported actions", () => {
     expect(SUPPORTED_ACTIONS).toContain("send");
+    expect(SUPPORTED_ACTIONS).toContain("send-image");
+    expect(SUPPORTED_ACTIONS).toContain("send-file");
+    expect(SUPPORTED_ACTIONS).toContain("send-link");
+    expect(SUPPORTED_ACTIONS).toContain("send-video");
     expect(SUPPORTED_ACTIONS).toContain("send-voice");
     expect(SUPPORTED_ACTIONS).toContain("get-group-info");
     expect(SUPPORTED_ACTIONS).toContain("get-group-members-info");
@@ -126,6 +130,27 @@ describe("action registry", () => {
     expect(client.sentMessages).toEqual([{ threadId: "allowed-user", text: "hello", isGroup: false }]);
   });
 
+
+
+  it("sends media attachments through the client boundary", async () => {
+    const { baseUrl, client } = await startServer({ token: "secret" });
+
+    const image = await postAction(baseUrl, "send-image", { threadId: "thread-1", imageUrl: "https://example.test/image.jpg", text: "photo" }, "secret");
+    const file = await postAction(baseUrl, "send-file", { threadId: "thread-1", fileUrl: "https://example.test/file.pdf" }, "secret");
+    const link = await postAction(baseUrl, "send-link", { threadId: "thread-1", link: "https://example.test", text: "link" }, "secret");
+    const video = await postAction(baseUrl, "send-video", { threadId: "thread-1", videoUrl: "https://example.test/video.mp4", thumbnailUrl: "https://example.test/thumb.jpg" }, "secret");
+
+    expect(image.status).toBe(200);
+    expect(file.status).toBe(200);
+    expect(link.status).toBe(200);
+    expect(video.status).toBe(200);
+    expect(client.sentAttachments).toEqual([
+      { threadId: "thread-1", attachment: "https://example.test/image.jpg", text: "photo", isGroup: undefined, ttl: undefined },
+      { threadId: "thread-1", attachment: "https://example.test/file.pdf", text: undefined, isGroup: undefined, ttl: undefined },
+    ]);
+    expect(client.sentLinks).toEqual([{ threadId: "thread-1", link: "https://example.test", text: "link", isGroup: undefined, ttl: undefined }]);
+    expect(client.sentVideos).toEqual([{ threadId: "thread-1", videoUrl: "https://example.test/video.mp4", thumbnailUrl: "https://example.test/thumb.jpg", text: undefined, isGroup: undefined, ttl: undefined, duration: undefined, width: undefined, height: undefined }]);
+  });
 
   it("sends voice through the client boundary", async () => {
     const { baseUrl, client } = await startServer({ token: "secret" });

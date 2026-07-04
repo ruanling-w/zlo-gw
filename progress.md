@@ -88,6 +88,7 @@
 - Added directory query filtering for friends, groups, and group members.
 - Registered requested next action names for attachments, message management, user lookup, group lookup, and conversation state; unsupported adapter paths return stable `502 not implemented` responses until real `zca-js` calls are wired.
 - Added inbound attachment normalization for voice/media-like Zalo messages and wired outbound `send-voice` through `zca-js`.
+- Wired media send actions through `zca-js`: `send-image`, `send-file`, `send-link`, and `send-video`.
 - Added combined app entrypoint (`npm start` / `dist/app.js`) to run gateway and Hermes bridge with one command.
 - Added Dockerfile and `.dockerignore` for container packaging with `/data` volume.
 - Added authenticated QR login API endpoints: `POST /login/qr/start`, `GET /login/qr/status`, and `GET /login/qr/image`.
@@ -104,14 +105,14 @@
 - Latest verification after action allowlist completion: `npm run typecheck && npm run test` passed.
   - TypeScript compile check passed.
   - 20 test files passed.
-  - 153 tests passed.
+  - 154 tests passed.
 
 ## Risks And Notes
 
 - `npm install` reports 8 vulnerabilities; no `npm audit fix` was run.
 - Zalo personal automation is unofficial and can risk account checkpoint/ban.
 - Real Zalo testing must use a secondary account.
-- Gateway-side allowlists now exist for inbound webhooks, `/messages/send`, and send-like curated actions.
+- Gateway-side allowlists now exist for inbound webhooks, `/messages/send`, and send/media-like curated actions.
 - Keep Hermes core untouched; integration remains external through bridge/plugin clients that call the gateway.
 
 ## Next Step

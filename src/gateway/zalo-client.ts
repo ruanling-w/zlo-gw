@@ -36,6 +36,34 @@ export type SendVoiceInput = {
   ttl?: number;
 };
 
+export type SendAttachmentInput = {
+  threadId: string;
+  attachment: string;
+  text?: string;
+  isGroup?: boolean;
+  ttl?: number;
+};
+
+export type SendLinkInput = {
+  threadId: string;
+  link: string;
+  text?: string;
+  isGroup?: boolean;
+  ttl?: number;
+};
+
+export type SendVideoInput = {
+  threadId: string;
+  videoUrl: string;
+  thumbnailUrl: string;
+  text?: string;
+  isGroup?: boolean;
+  ttl?: number;
+  duration?: number;
+  width?: number;
+  height?: number;
+};
+
 export type NormalizedAttachment = {
   type: "voice" | "image" | "video" | "file" | "link" | "sticker" | "unknown";
   url?: string;
@@ -96,6 +124,9 @@ export interface GatewayZaloClient {
   status(): Promise<ZaloGatewayStatus>;
   sendText(input: SendTextInput): Promise<SendMessageResult>;
   sendVoice(input: SendVoiceInput): Promise<SendMessageResult>;
+  sendAttachment(input: SendAttachmentInput): Promise<SendMessageResult>;
+  sendLink(input: SendLinkInput): Promise<SendMessageResult>;
+  sendVideo(input: SendVideoInput): Promise<SendMessageResult>;
   replyMessage(input: SendTextInput & { messageId?: string }): Promise<SendMessageResult>;
   addReaction(input: { threadId: string; messageId: string; reaction: string; isGroup?: boolean }): Promise<ActionResult>;
   getThreadInfo(input: { threadId: string; isGroup?: boolean }): Promise<ActionResult<ThreadInfo>>;
@@ -177,7 +208,34 @@ export class ZcaGatewayZaloClient implements GatewayZaloClient {
   async sendVoice(input: SendVoiceInput): Promise<SendMessageResult> {
     const api = await getApi();
     const result = await api.sendVoice({ voiceUrl: input.voiceUrl, ttl: input.ttl }, input.threadId, input.isGroup ? ThreadType.Group : ThreadType.User);
-    return { ok: true, messageId: result.msgId, threadId: input.threadId };
+    return { ok: true, messageId: String(result.msgId), threadId: input.threadId };
+  }
+
+  async sendAttachment(input: SendAttachmentInput): Promise<SendMessageResult> {
+    const api = await getApi();
+    const result = await api.sendMessage({ msg: input.text ?? "", attachments: input.attachment, ttl: input.ttl }, input.threadId, input.isGroup ? ThreadType.Group : ThreadType.User);
+    const msgId = result.attachment[0]?.msgId ?? result.message?.msgId;
+    return { ok: true, messageId: msgId === undefined ? undefined : String(msgId), threadId: input.threadId };
+  }
+
+  async sendLink(input: SendLinkInput): Promise<SendMessageResult> {
+    const api = await getApi();
+    const result = await api.sendLink({ link: input.link, msg: input.text, ttl: input.ttl }, input.threadId, input.isGroup ? ThreadType.Group : ThreadType.User);
+    return { ok: true, messageId: String(result.msgId), threadId: input.threadId };
+  }
+
+  async sendVideo(input: SendVideoInput): Promise<SendMessageResult> {
+    const api = await getApi();
+    const result = await api.sendVideo({
+      videoUrl: input.videoUrl,
+      thumbnailUrl: input.thumbnailUrl,
+      msg: input.text,
+      ttl: input.ttl,
+      duration: input.duration,
+      width: input.width,
+      height: input.height,
+    }, input.threadId, input.isGroup ? ThreadType.Group : ThreadType.User);
+    return { ok: true, messageId: String(result.msgId), threadId: input.threadId };
   }
 
   async replyMessage(input: SendTextInput & { messageId?: string }): Promise<SendMessageResult> {
