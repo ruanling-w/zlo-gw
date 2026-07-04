@@ -2,7 +2,14 @@
 
 ## Runbook
 
-Start the gateway:
+Recommended packaged startup runs the Zalo gateway and Hermes bridge together:
+
+```bash
+npm run build:all
+npm start
+```
+
+For gateway-only development:
 
 ```bash
 npm run gateway

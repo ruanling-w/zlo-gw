@@ -108,6 +108,15 @@ Stored credentials should live under the runtime data directory. Treat them as s
 
 ## Run Gateway
 
+Recommended packaged startup runs the Zalo gateway and Hermes bridge together:
+
+```bash
+npm run build:all
+npm start
+```
+
+For gateway-only development:
+
 ```bash
 npm run gateway
 ```
@@ -155,6 +164,9 @@ DELETE /policy/allowed-senders/:id
 POST /policy/allowed-threads
 DELETE /policy/allowed-threads/:id
 POST /actions/:action
+POST /login/qr/start
+GET  /login/qr/status
+GET  /login/qr/image
 ```
 
 Supported action names:
@@ -168,27 +180,12 @@ get-group-members
 list-friends
 list-groups
 mark-read
-send-image
-send-file
-send-link
-send-video
 send-voice
-delete-message
-undo-message
-forward-message
-find-user
-find-user-by-username
-get-user-info
-check-friend-status
 get-group-info
 get-group-members-info
-get-group-link
-mute-conversation
-mark-unread
-pin-conversation
 ```
 
-`send-voice` is wired through `zca-js`; other newly registered media/management actions may still return `502` with `not implemented` until the adapter call is wired.
+Only stable, wired actions are exposed in production action registry. Add more actions after their `zca-js` adapter calls and policy checks are implemented.
 
 ## Curl Examples
 

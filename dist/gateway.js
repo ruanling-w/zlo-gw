@@ -1,18 +1,32 @@
-// src/gateway/auth.ts
-function extractBearerToken(header) {
-  const value = Array.isArray(header) ? header[0] : header;
-  if (!value) return void 0;
-  const match = /^Bearer\s+(.+)$/i.exec(value.trim());
-  return match?.[1]?.trim() || void 0;
+// src/env/load-dotenv.ts
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+function parseEnvLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("#")) return null;
+  const index = trimmed.indexOf("=");
+  if (index <= 0) return null;
+  const key = trimmed.slice(0, index).trim();
+  let value = trimmed.slice(index + 1).trim();
+  if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
+    value = value.slice(1, -1);
+  }
+  return [key, value];
 }
-function isAuthorized(request, expectedToken) {
-  if (!expectedToken) return true;
-  return extractBearerToken(request.headers.authorization) === expectedToken;
+function loadDotEnv(path = resolve(process.cwd(), ".env")) {
+  if (!existsSync(path)) return;
+  const raw = readFileSync(path, "utf8");
+  for (const line of raw.split(/\r?\n/)) {
+    const parsed = parseEnvLine(line);
+    if (!parsed) continue;
+    const [key, value] = parsed;
+    process.env[key] ??= value;
+  }
 }
-function requireBearerToken(request, expectedToken) {
-  if (isAuthorized(request, expectedToken)) return { ok: true };
-  return { ok: false, status: 401, error: "Unauthorized" };
-}
+loadDotEnv();
+
+// src/gateway/server.ts
+import { createServer } from "node:http";
 
 // src/gateway/policy.ts
 var WILDCARD = "*";
@@ -98,9 +112,6 @@ function loadGatewayConfig(env = process.env) {
   };
 }
 
-// src/gateway/server.ts
-import { createServer } from "node:http";
-
 // src/gateway/routes/health.ts
 async function healthResponse(options) {
   const zalo = options.getZaloStatus ? await options.getZaloStatus() : { status: "unknown", authenticated: false };
@@ -127,7 +138,7 @@ import { ThreadType as ThreadType2 } from "zca-js";
 import { Zalo, LoginQRCallbackEventType } from "zca-js";
 
 // src/client/credentials.ts
-import { readFileSync, writeFileSync, unlinkSync, existsSync, chmodSync, mkdirSync, copyFileSync } from "node:fs";
+import { readFileSync as readFileSync2, writeFileSync, unlinkSync, existsSync as existsSync2, chmodSync, mkdirSync, copyFileSync } from "node:fs";
 import { join, dirname, isAbsolute } from "node:path";
 import { homedir } from "node:os";
 var DEFAULT_DATA_DIR = "run";
@@ -140,45 +151,45 @@ function getGatewayDataDir(env = process.env) {
 function getCredentialsPath(env = process.env) {
   return join(getGatewayDataDir(env), "credentials", CREDENTIALS_FILE);
 }
-function migrateLegacyCredentialsIfNeeded(path3 = getCredentialsPath()) {
-  if (existsSync(path3) || !existsSync(LEGACY_CREDENTIALS_PATH)) return;
-  const dir = dirname(path3);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 448 });
-  copyFileSync(LEGACY_CREDENTIALS_PATH, path3);
+function migrateLegacyCredentialsIfNeeded(path = getCredentialsPath()) {
+  if (existsSync2(path) || !existsSync2(LEGACY_CREDENTIALS_PATH)) return;
+  const dir = dirname(path);
+  if (!existsSync2(dir)) mkdirSync(dir, { recursive: true, mode: 448 });
+  copyFileSync(LEGACY_CREDENTIALS_PATH, path);
   try {
-    chmodSync(path3, 384);
+    chmodSync(path, 384);
   } catch {
   }
 }
 function saveCredentials(data) {
-  const path3 = getCredentialsPath();
-  const dir = dirname(path3);
-  if (!existsSync(dir)) {
+  const path = getCredentialsPath();
+  const dir = dirname(path);
+  if (!existsSync2(dir)) {
     mkdirSync(dir, { recursive: true, mode: 448 });
   }
-  writeFileSync(path3, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 384 });
+  writeFileSync(path, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 384 });
   try {
-    chmodSync(path3, 384);
+    chmodSync(path, 384);
   } catch {
   }
 }
 function loadCredentials() {
-  const path3 = getCredentialsPath();
-  migrateLegacyCredentialsIfNeeded(path3);
-  if (!existsSync(path3)) {
+  const path = getCredentialsPath();
+  migrateLegacyCredentialsIfNeeded(path);
+  if (!existsSync2(path)) {
     return null;
   }
   try {
-    const raw = readFileSync(path3, "utf-8");
+    const raw = readFileSync2(path, "utf-8");
     return JSON.parse(raw);
   } catch {
     return null;
   }
 }
 function hasCredentials() {
-  const path3 = getCredentialsPath();
-  migrateLegacyCredentialsIfNeeded(path3);
-  return existsSync(path3);
+  const path = getCredentialsPath();
+  migrateLegacyCredentialsIfNeeded(path);
+  return existsSync2(path);
 }
 
 // src/client/zalo-client.ts
@@ -781,6 +792,22 @@ var ZcaGatewayZaloClient = class {
   }
 };
 
+// src/gateway/auth.ts
+function extractBearerToken(header) {
+  const value = Array.isArray(header) ? header[0] : header;
+  if (!value) return void 0;
+  const match = /^Bearer\s+(.+)$/i.exec(value.trim());
+  return match?.[1]?.trim() || void 0;
+}
+function isAuthorized(request, expectedToken) {
+  if (!expectedToken) return true;
+  return extractBearerToken(request.headers.authorization) === expectedToken;
+}
+function requireBearerToken(request, expectedToken) {
+  if (isAuthorized(request, expectedToken)) return { ok: true };
+  return { ok: false, status: 401, error: "Unauthorized" };
+}
+
 // src/gateway/routes/messages.ts
 var MAX_TEXT_LENGTH = 4e3;
 var MAX_BODY_BYTES = 128 * 1024;
@@ -1159,7 +1186,7 @@ async function groupMembersResponse(groupId, url, client) {
 }
 
 // src/gateway/policy-store.ts
-import { existsSync as existsSync3, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { existsSync as existsSync4, mkdirSync as mkdirSync2, readFileSync as readFileSync3, writeFileSync as writeFileSync2 } from "node:fs";
 import { dirname as dirname2, join as join2 } from "node:path";
 var POLICY_FILE = "gateway-policy.json";
 function cleanList(value) {
@@ -1178,8 +1205,8 @@ function normalizePolicyConfig(input) {
   };
 }
 var GatewayPolicyStore = class {
-  constructor(initialPolicy, path3 = policyPath()) {
-    this.path = path3;
+  constructor(initialPolicy, path = policyPath()) {
+    this.path = path;
     this.policy = this.load(initialPolicy);
   }
   path;
@@ -1203,9 +1230,9 @@ var GatewayPolicyStore = class {
     return this.policy;
   }
   load(fallback) {
-    if (!existsSync3(this.path)) return normalizePolicyConfig(fallback);
+    if (!existsSync4(this.path)) return normalizePolicyConfig(fallback);
     try {
-      return normalizePolicyConfig(JSON.parse(readFileSync2(this.path, "utf8")));
+      return normalizePolicyConfig(JSON.parse(readFileSync3(this.path, "utf8")));
     } catch {
       return normalizePolicyConfig(fallback);
     }
@@ -1427,45 +1454,45 @@ function createGatewayServer(options = {}) {
   const server = createServer(async (request, response) => {
     try {
       const url = routeUrl(request);
-      const path3 = url.pathname;
-      if (path3 === "/health") {
+      const path = url.pathname;
+      if (path === "/health") {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         return sendJson(response, await healthResponse({ runtime, getZaloStatus }));
       }
-      if (path3 === "/version") {
+      if (path === "/version") {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         return sendJson(response, versionResponse(runtime));
       }
-      if (path3 === "/login/qr/start") {
+      if (path === "/login/qr/start") {
         if (request.method !== "POST") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
         return sendJson(response, await startLoginQrResponse());
       }
-      if (path3 === "/login/qr/status") {
+      if (path === "/login/qr/status") {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
         return sendJson(response, loginQrStatusResponse());
       }
-      if (path3 === "/login/qr/image") {
+      if (path === "/login/qr/image") {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
         return sendJson(response, loginQrImageResponse());
       }
-      if (path3 === "/messages/send") {
+      if (path === "/messages/send") {
         if (request.method !== "POST") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
         return sendJson(response, await sendMessageResponse(request, zaloClient, policyStore.current()));
       }
-      if (path3 === "/policy") {
+      if (path === "/policy") {
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
         return sendJson(response, await policyResponse(request, policyStore));
       }
-      const policyListMatch = /^\/policy\/(allowed-senders|allowed-threads|denied-senders|denied-threads)(?:\/([^/]+))?$/.exec(path3);
+      const policyListMatch = /^\/policy\/(allowed-senders|allowed-threads|denied-senders|denied-threads)(?:\/([^/]+))?$/.exec(path);
       if (policyListMatch) {
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
@@ -1477,30 +1504,30 @@ function createGatewayServer(options = {}) {
         };
         return sendJson(response, await policyListResponse(request, policyStore, keyMap[policyListMatch[1]], policyListMatch[2]));
       }
-      if (path3 === "/friends") {
+      if (path === "/friends") {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
         return sendJson(response, await friendsResponse(url, zaloClient));
       }
-      if (path3 === "/groups") {
+      if (path === "/groups") {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
         return sendJson(response, await groupsResponse(url, zaloClient));
       }
-      const groupMembersMatch = /^\/groups\/([^/]+)\/members$/.exec(path3);
+      const groupMembersMatch = /^\/groups\/([^/]+)\/members$/.exec(path);
       if (groupMembersMatch) {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
         return sendJson(response, await groupMembersResponse(decodeURIComponent(groupMembersMatch[1]), url, zaloClient));
       }
-      if (path3.startsWith("/actions/")) {
+      if (path.startsWith("/actions/")) {
         if (request.method !== "POST") return sendJson(response, methodNotAllowed());
         const auth = requireBearerToken(request, config.token);
         if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
-        const action = decodeURIComponent(path3.slice("/actions/".length));
+        const action = decodeURIComponent(path.slice("/actions/".length));
         return sendJson(response, await actionResponse(action, request, zaloClient, policyStore.current()));
       }
       return sendJson(response, notFound());
@@ -1518,859 +1545,28 @@ function createGatewayServer(options = {}) {
   return { server, config, runtime, webhookDispatcher, policyStore };
 }
 async function listenGateway(options = {}) {
-  const gateway = createGatewayServer(options);
-  await new Promise((resolve3, reject) => {
-    gateway.server.once("error", reject);
-    gateway.server.listen(gateway.config.port, gateway.config.host, () => {
-      gateway.server.off("error", reject);
-      resolve3();
+  const gateway2 = createGatewayServer(options);
+  await new Promise((resolve2, reject) => {
+    gateway2.server.once("error", reject);
+    gateway2.server.listen(gateway2.config.port, gateway2.config.host, () => {
+      gateway2.server.off("error", reject);
+      resolve2();
     });
   });
-  return gateway;
+  return gateway2;
 }
 
-// src/bridge/hermes/config.ts
-var DEFAULT_HOST2 = "127.0.0.1";
-var DEFAULT_PORT2 = 8790;
-var DEFAULT_TIMEOUT_MS2 = 12e4;
-function parsePort2(raw) {
-  if (!raw) return DEFAULT_PORT2;
-  const port = Number.parseInt(raw, 10);
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    throw new Error(`Invalid HERMES_BRIDGE_PORT: ${raw}`);
-  }
-  return port;
-}
-function parseTimeout(raw) {
-  if (!raw) return DEFAULT_TIMEOUT_MS2;
-  const timeout = Number.parseInt(raw, 10);
-  if (!Number.isInteger(timeout) || timeout <= 0) {
-    throw new Error(`Invalid HERMES_TIMEOUT_MS: ${raw}`);
-  }
-  return timeout;
-}
-function parseList(raw) {
-  if (!raw) return [];
-  return raw.split(",").map((item) => item.trim()).filter(Boolean);
-}
-function loadHermesBridgeConfig(env = process.env) {
-  return {
-    host: env.HERMES_BRIDGE_HOST?.trim() || DEFAULT_HOST2,
-    port: parsePort2(env.HERMES_BRIDGE_PORT),
-    token: env.HERMES_BRIDGE_TOKEN?.trim() || void 0,
-    hermesCli: env.HERMES_CLI?.trim() || "hermes",
-    sessionPrefix: env.HERMES_SESSION_PREFIX?.trim() || "zalo",
-    hermesTimeoutMs: parseTimeout(env.HERMES_TIMEOUT_MS),
-    zaloGatewayUrl: env.ZALO_GATEWAY_URL?.trim() || "http://127.0.0.1:8787",
-    zaloGatewayToken: env.ZALO_GATEWAY_TOKEN?.trim() || void 0,
-    allowedSenders: parseList(env.HERMES_BRIDGE_ALLOWED_SENDERS),
-    allowedThreads: parseList(env.HERMES_BRIDGE_ALLOWED_THREADS)
-  };
-}
-
-// src/bridge/hermes/hermes-cli.ts
-import { spawn } from "node:child_process";
-var HermesCliRunner = class {
-  constructor(command) {
-    this.command = command;
-  }
-  command;
-  async run(input) {
-    return new Promise((resolve3) => {
-      const child = spawn(this.command, ["--continue", input.sessionId, "-z", input.prompt], {
-        stdio: ["ignore", "pipe", "pipe"]
-      });
-      let stdout = "";
-      let stderr = "";
-      const timer = setTimeout(() => {
-        child.kill("SIGTERM");
-        resolve3({ ok: false, error: "Hermes CLI timed out" });
-      }, input.timeoutMs);
-      child.stdout.on("data", (chunk) => {
-        stdout += String(chunk);
-      });
-      child.stderr.on("data", (chunk) => {
-        stderr += String(chunk);
-      });
-      child.on("error", (err) => {
-        clearTimeout(timer);
-        resolve3({ ok: false, error: err.message });
-      });
-      child.on("close", (code) => {
-        clearTimeout(timer);
-        if (code === 0) {
-          return resolve3({ ok: true, text: stdout.trim() });
-        }
-        return resolve3({ ok: false, error: stderr.trim() || `Hermes CLI exited with code ${code}` });
-      });
-    });
-  }
-};
-
-// src/bridge/hermes/orchestrator.ts
-var DEDUP_TTL_MS = 10 * 60 * 1e3;
-var DEDUP_MAX = 2e3;
-var HermesBridgeOrchestrator = class {
-  constructor(config, hermes, zaloGateway) {
-    this.config = config;
-    this.hermes = hermes;
-    this.zaloGateway = zaloGateway;
-  }
-  config;
-  hermes;
-  zaloGateway;
-  seenMessageIds = /* @__PURE__ */ new Map();
-  async process(event) {
-    const validated = this.validateEvent(event);
-    if (!validated.ok) return { ok: true, ignored: true, reason: validated.reason };
-    const message = validated.event;
-    if (this.isDuplicate(message.messageId)) return { ok: true, ignored: true, reason: "duplicate" };
-    if (!this.isAllowed(message)) return { ok: true, ignored: true, reason: "not allowed" };
-    const hermesResult = await this.hermes.run({
-      sessionId: `${this.config.sessionPrefix}:${message.threadId}`,
-      prompt: this.formatPrompt(message),
-      timeoutMs: this.config.hermesTimeoutMs
-    });
-    if (!hermesResult.ok) return { ok: false, error: hermesResult.error ?? "Hermes failed" };
-    const text = hermesResult.text?.trim() ?? "";
-    if (!text) return { ok: true, ignored: true, reason: "empty hermes reply" };
-    const sendResult = await this.zaloGateway.sendMessage({
-      threadId: message.threadId,
-      isGroup: message.chatType === "group",
-      text
-    });
-    if (!sendResult.ok) return { ok: false, hermesText: text, error: sendResult.error ?? "Failed to send Zalo reply" };
-    return { ok: true, hermesText: text, messageId: sendResult.messageId };
-  }
-  validateEvent(event) {
-    if (!event || typeof event !== "object" || Array.isArray(event)) return { ok: false, reason: "invalid event" };
-    const record = event;
-    if (record.type !== "message.created" || record.platform !== "zalo") return { ok: false, reason: "unsupported event" };
-    if (typeof record.threadId !== "string" || !record.threadId.trim()) return { ok: false, reason: "missing threadId" };
-    if (record.chatType !== "dm" && record.chatType !== "group") return { ok: false, reason: "invalid chatType" };
-    if (typeof record.text !== "string" || !record.text.trim()) return { ok: false, reason: "empty text" };
-    return { ok: true, event: record };
-  }
-  isAllowed(event) {
-    if (this.config.allowedThreads.length > 0 && !this.config.allowedThreads.includes(event.threadId)) return false;
-    if (this.config.allowedSenders.length > 0 && (!event.senderId || !this.config.allowedSenders.includes(event.senderId))) return false;
-    return true;
-  }
-  isDuplicate(messageId) {
-    if (!messageId) return false;
-    const now = Date.now();
-    if (this.seenMessageIds.has(messageId)) return true;
-    if (this.seenMessageIds.size >= DEDUP_MAX) {
-      for (const [id, ts] of this.seenMessageIds) {
-        if (now - ts > DEDUP_TTL_MS) this.seenMessageIds.delete(id);
-      }
-      if (this.seenMessageIds.size >= DEDUP_MAX) {
-        const oldest = this.seenMessageIds.keys().next().value;
-        if (oldest) this.seenMessageIds.delete(oldest);
-      }
-    }
-    this.seenMessageIds.set(messageId, now);
-    return false;
-  }
-  formatPrompt(event) {
-    const sender = event.senderName || event.senderId || "Zalo user";
-    return `[Zalo ${event.chatType}] ${sender}: ${event.text}`;
-  }
-};
-
-// src/bridge/hermes/server.ts
-import { createServer as createServer2 } from "node:http";
-
-// src/bridge/hermes/zalo-gateway-client.ts
-var HttpZaloGatewayClient = class {
-  constructor(baseUrl, token, fetchImpl = fetch) {
-    this.baseUrl = baseUrl;
-    this.token = token;
-    this.fetchImpl = fetchImpl;
-  }
-  baseUrl;
-  token;
-  fetchImpl;
-  async sendMessage(input) {
-    try {
-      const response = await this.fetchImpl(new URL("/messages/send", this.baseUrl), {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...this.token ? { authorization: "Bearer " + this.token } : {}
-        },
-        body: JSON.stringify(input)
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || body.ok === false) {
-        return { ok: false, error: body.error ?? `Zalo Gateway returned HTTP ${response.status}` };
-      }
-      return { ok: true, messageId: body.messageId };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  }
-};
-
-// src/bridge/hermes/server.ts
-function sendJson2(response, result) {
-  const body = JSON.stringify(result.body);
-  response.writeHead(result.status, {
-    "content-type": "application/json; charset=utf-8",
-    "content-length": Buffer.byteLength(body).toString(),
-    ...result.headers
+// src/gateway/index.ts
+var gateway = await listenGateway();
+console.log(`[zalo-api-gateway] listening on http://${gateway.config.host}:${gateway.config.port}`);
+var shutdown = async () => {
+  await new Promise((resolve2, reject) => {
+    gateway.server.close((err) => err ? reject(err) : resolve2());
   });
-  response.end(body);
-}
-function routePath(request) {
-  const host = request.headers.host ?? "127.0.0.1";
-  return new URL(request.url ?? "/", `http://${host}`).pathname;
-}
-async function readJson2(request) {
-  const chunks = [];
-  for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  const raw = Buffer.concat(chunks).toString("utf8").trim();
-  return raw ? JSON.parse(raw) : void 0;
-}
-function createHermesBridgeServer(options = {}) {
-  const config = options.config ?? loadHermesBridgeConfig();
-  const hermesRunner = options.hermesRunner ?? new HermesCliRunner(config.hermesCli);
-  const zaloGatewayClient = options.zaloGatewayClient ?? new HttpZaloGatewayClient(config.zaloGatewayUrl, config.zaloGatewayToken);
-  const orchestrator = new HermesBridgeOrchestrator(config, hermesRunner, zaloGatewayClient);
-  const server = createServer2(async (request, response) => {
-    try {
-      const path3 = routePath(request);
-      if (path3 === "/health") {
-        if (request.method !== "GET") return sendJson2(response, { status: 405, body: { ok: false, error: "Method not allowed" } });
-        return sendJson2(response, { status: 200, body: { ok: true, service: "zalo-hermes-bridge" } });
-      }
-      if (path3 === "/webhooks/zalo") {
-        if (request.method !== "POST") return sendJson2(response, { status: 405, body: { ok: false, error: "Method not allowed" } });
-        const auth = requireBearerToken(request, config.token);
-        if (!auth.ok) return sendJson2(response, { status: auth.status, body: { ok: false, error: auth.error } });
-        const event = await readJson2(request);
-        const result = await orchestrator.process(event);
-        return sendJson2(response, { status: result.ok ? 200 : 502, body: result });
-      }
-      return sendJson2(response, { status: 404, body: { ok: false, error: "Not found" } });
-    } catch (err) {
-      return sendJson2(response, { status: 400, body: { ok: false, error: err instanceof SyntaxError ? "Invalid JSON body" : err instanceof Error ? err.message : "Bad request" } });
-    }
-  });
-  return { server, config, orchestrator };
-}
-async function listenHermesBridge(options = {}) {
-  const bridge = createHermesBridgeServer(options);
-  await new Promise((resolve3, reject) => {
-    bridge.server.once("error", reject);
-    bridge.server.listen(bridge.config.port, bridge.config.host, () => {
-      bridge.server.off("error", reject);
-      resolve3();
-    });
-  });
-  return bridge;
-}
-
-// src/gateway/zalo-client.mock.ts
-var MockGatewayZaloClient = class {
-  constructor(currentStatus = {
-    status: "disconnected",
-    authenticated: false,
-    hasStoredCredentials: false
-  }) {
-    this.currentStatus = currentStatus;
-  }
-  currentStatus;
-  handlers = /* @__PURE__ */ new Set();
-  sentMessages = [];
-  sentVoices = [];
-  replies = [];
-  reactions = [];
-  markReadCalls = [];
-  nextSendResult;
-  nextReplyResult;
-  nextActionResult;
-  threadInfo = { threadId: "thread-1", isGroup: false, name: "Mock Thread" };
-  groupMembers = [];
-  friends = [];
-  groups = [];
-  async status() {
-    return this.currentStatus;
-  }
-  setStatus(status) {
-    this.currentStatus = status;
-  }
-  async sendText(input) {
-    this.sentMessages.push(input);
-    return {
-      ok: true,
-      messageId: `mock-${this.sentMessages.length}`,
-      threadId: input.threadId,
-      ...this.nextSendResult
-    };
-  }
-  async sendVoice(input) {
-    this.sentVoices.push(input);
-    return {
-      ok: true,
-      messageId: `voice-${this.sentVoices.length}`,
-      threadId: input.threadId,
-      ...this.nextSendResult
-    };
-  }
-  async replyMessage(input) {
-    this.replies.push(input);
-    return {
-      ok: true,
-      messageId: `reply-${this.replies.length}`,
-      threadId: input.threadId,
-      ...this.nextReplyResult
-    };
-  }
-  async addReaction(input) {
-    this.reactions.push(input);
-    return this.nextActionResult ?? { ok: true, data: { reacted: true } };
-  }
-  async getThreadInfo(input) {
-    return { ok: true, data: { ...this.threadInfo, threadId: input.threadId, isGroup: input.isGroup ?? this.threadInfo.isGroup } };
-  }
-  async getGroupMembers(_input) {
-    return { ok: true, data: this.groupMembers };
-  }
-  async listFriends(_input = {}) {
-    return { ok: true, data: this.friends };
-  }
-  async listGroups() {
-    return { ok: true, data: this.groups };
-  }
-  async markRead(input) {
-    this.markReadCalls.push(input);
-    return this.nextActionResult ?? { ok: true, data: { marked: true } };
-  }
-  onMessage(handler) {
-    this.handlers.add(handler);
-    return {
-      dispose: () => {
-        this.handlers.delete(handler);
-      }
-    };
-  }
-  emit(event) {
-    for (const handler of this.handlers) {
-      handler(event);
-    }
-  }
-  listenerCount() {
-    return this.handlers.size;
-  }
 };
-
-// src/zalo/message-normalizer.ts
-import { ThreadType as ThreadType3 } from "zca-js";
-import * as crypto3 from "node:crypto";
-import * as fs5 from "node:fs";
-import sharp2 from "sharp";
-
-// src/channel/file-downloader.ts
-import * as fs3 from "fs";
-import * as path from "path";
-import * as crypto from "crypto";
-import * as os from "os";
-
-// src/safety/url-validator.ts
-import { URL as URL2 } from "node:url";
-import * as dns from "node:dns/promises";
-import * as net from "node:net";
-var MAX_DOWNLOAD_SIZE_BYTES = 50 * 1024 * 1024;
-var DOWNLOAD_TIMEOUT_MS = 3e4;
-function isPrivateIp(ip) {
-  const normalized = ip.replace(/^::ffff:/i, "");
-  if (net.isIPv4(normalized)) {
-    const parts = normalized.split(".").map(Number);
-    if (parts[0] === 10) return true;
-    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
-    if (parts[0] === 192 && parts[1] === 168) return true;
-    if (parts[0] === 127) return true;
-    if (parts[0] === 169 && parts[1] === 254) return true;
-    if (parts[0] === 0) return true;
-    return false;
-  }
-  if (net.isIPv6(normalized)) {
-    const lower = normalized.toLowerCase();
-    if (lower === "::1") return true;
-    if (lower === "::") return true;
-    if (lower.startsWith("fe80:")) return true;
-    if (/^f[cd]/i.test(lower)) return true;
-    return false;
-  }
-  return true;
-}
-async function validateUrlForOutboundFetch(rawUrl) {
-  let parsed;
-  try {
-    parsed = new URL2(rawUrl);
-  } catch {
-    throw new Error(`Invalid URL: ${rawUrl}`);
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error(`Blocked URL scheme: ${parsed.protocol} (only http/https allowed)`);
-  }
-  if (parsed.username || parsed.password) {
-    throw new Error("URLs with embedded credentials are not allowed");
-  }
-  let hostname = parsed.hostname;
-  if (hostname.startsWith("[") && hostname.endsWith("]")) {
-    hostname = hostname.slice(1, -1);
-  }
-  if (net.isIP(hostname)) {
-    if (isPrivateIp(hostname)) {
-      throw new Error(`Blocked private/internal IP: ${hostname}`);
-    }
-    return parsed;
-  }
-  try {
-    const addresses = await dns.resolve4(hostname).catch(() => []);
-    const addresses6 = await dns.resolve6(hostname).catch(() => []);
-    const allAddresses = [...addresses, ...addresses6];
-    if (allAddresses.length === 0) {
-      throw new Error(`DNS resolution failed for: ${hostname}`);
-    }
-    for (const ip of allAddresses) {
-      if (isPrivateIp(ip)) {
-        throw new Error(`Blocked: ${hostname} resolves to private/internal IP ${ip}`);
-      }
-    }
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith("Blocked")) throw err;
-    throw new Error(`DNS validation failed for ${hostname}: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  return parsed;
-}
-async function safeFetch(rawUrl, options = {}) {
-  const maxSize = options.maxSizeBytes ?? MAX_DOWNLOAD_SIZE_BYTES;
-  const timeout = options.timeoutMs ?? DOWNLOAD_TIMEOUT_MS;
-  if (!options.skipSsrfCheck) {
-    await validateUrlForOutboundFetch(rawUrl);
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(rawUrl, {
-      signal: controller.signal,
-      redirect: "follow"
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    const contentLength = response.headers.get("content-length");
-    if (contentLength && parseInt(contentLength, 10) > maxSize) {
-      throw new Error(`File too large: ${contentLength} bytes (max ${maxSize})`);
-    }
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("No response body");
-    }
-    const chunks = [];
-    let totalSize = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalSize += value.length;
-      if (totalSize > maxSize) {
-        reader.cancel();
-        throw new Error(`Download exceeded size limit: ${totalSize} bytes (max ${maxSize})`);
-      }
-      chunks.push(value);
-    }
-    return {
-      buffer: Buffer.concat(chunks),
-      contentType: response.headers.get("content-type")
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// src/channel/file-downloader.ts
-var MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
-async function downloadFileFromUrl(url, workspaceDir) {
-  try {
-    const targetDir = workspaceDir || path.join(os.homedir(), ".openclaw/media/inbound");
-    if (!fs3.existsSync(targetDir)) {
-      fs3.mkdirSync(targetDir, { recursive: true });
-    }
-    const urlHash = crypto.createHash("sha256").update(url).digest("hex").substring(0, 12);
-    const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").substring(0, 19);
-    const ext = getSafeExtension(url) || "file";
-    const filename = `${timestamp}-zalo-file-${urlHash}.${ext}`;
-    const filePath = path.join(targetDir, filename);
-    const resolvedPath = path.resolve(filePath);
-    const resolvedDir = path.resolve(targetDir);
-    if (!resolvedPath.startsWith(resolvedDir + path.sep)) {
-      console.error(`[file-downloader] Path traversal blocked: ${filePath}`);
-      return void 0;
-    }
-    const isZaloCdn = /^https:\/\/(?:[a-z0-9-]+\.)*(?:zalo|zadn|zdn)\.(?:vn|me)\//i.test(url);
-    const { buffer, contentType } = await safeFetch(url, {
-      maxSizeBytes: MAX_FILE_SIZE_BYTES,
-      skipSsrfCheck: isZaloCdn
-    });
-    if (contentType) {
-      console.log(`[file-downloader] Downloaded ${contentType} from ${url}`);
-    }
-    fs3.writeFileSync(filePath, buffer);
-    console.log(`[file-downloader] Saved to ${filePath} (${buffer.length} bytes)`);
-    return filePath;
-  } catch (err) {
-    console.error(`[file-downloader] Error downloading ${url}:`, err);
-    return void 0;
-  }
-}
-function getSafeExtension(url) {
-  try {
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
-    const match = pathname.match(/\.([a-z0-9]+)$/i);
-    if (match) {
-      return match[1].toLowerCase();
-    }
-  } catch {
-  }
-  return "";
-}
-
-// src/channel/image-downloader.ts
-import * as fs4 from "fs";
-import * as path2 from "path";
-import * as crypto2 from "crypto";
-import * as os2 from "os";
-var MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024;
-var ALLOWED_EXTENSIONS = /* @__PURE__ */ new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "tiff"]);
-var ALLOWED_MIME_TYPES = /* @__PURE__ */ new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/bmp",
-  "image/svg+xml",
-  "image/tiff"
-]);
-var IMAGE_MAGIC_BYTES = [
-  { prefix: [255, 216, 255], type: "jpeg" },
-  // JPEG
-  { prefix: [137, 80, 78, 71], type: "png" },
-  // PNG
-  { prefix: [71, 73, 70, 56], type: "gif" },
-  // GIF (GIF87a/GIF89a)
-  { prefix: [82, 73, 70, 70], type: "webp" },
-  // WebP (RIFF container)
-  { prefix: [66, 77], type: "bmp" }
-  // BMP
-];
-function detectImageType(buffer) {
-  for (const { prefix, type } of IMAGE_MAGIC_BYTES) {
-    if (buffer.length >= prefix.length) {
-      const match = prefix.every((byte, i) => buffer[i] === byte);
-      if (match) return type;
-    }
-  }
-  const head = buffer.subarray(0, 100).toString("utf8").trim().toLowerCase();
-  if (head.startsWith("<svg") || head.startsWith("<?xml") && head.includes("<svg")) {
-    return "svg";
-  }
-  return void 0;
-}
-async function downloadImageFromUrl(url, workspaceDir) {
-  try {
-    const targetDir = workspaceDir || path2.join(os2.homedir(), ".openclaw/media/inbound");
-    if (!fs4.existsSync(targetDir)) {
-      fs4.mkdirSync(targetDir, { recursive: true });
-    }
-    const urlHash = crypto2.createHash("sha256").update(url).digest("hex").substring(0, 12);
-    const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").substring(0, 19);
-    const ext = getSafeExtension2(url);
-    const filename = `${timestamp}-zalo-${urlHash}.${ext}`;
-    const filePath = path2.join(targetDir, filename);
-    const resolvedPath = path2.resolve(filePath);
-    const resolvedDir = path2.resolve(targetDir);
-    if (!resolvedPath.startsWith(resolvedDir + path2.sep)) {
-      console.error(`[image-downloader] Path traversal blocked: ${filePath}`);
-      return void 0;
-    }
-    const isZaloCdn = /^https:\/\/(?:[a-z0-9-]+\.)*(?:zalo|zadn|zdn)\.(?:vn|me)\//i.test(url);
-    const { buffer, contentType } = await safeFetch(url, {
-      maxSizeBytes: MAX_IMAGE_SIZE_BYTES,
-      skipSsrfCheck: isZaloCdn
-    });
-    const mimeBase = contentType?.split(";")[0]?.trim().toLowerCase();
-    if (mimeBase && !ALLOWED_MIME_TYPES.has(mimeBase) && !mimeBase.startsWith("image/")) {
-      console.warn(`[image-downloader] Rejected non-image content-type "${contentType}" from ${url}`);
-      return void 0;
-    }
-    const detectedType = detectImageType(buffer);
-    if (!detectedType) {
-      const headStr = buffer.subarray(0, 200).toString("utf8").toLowerCase();
-      if (headStr.includes("<!doctype") || headStr.includes("<html") || headStr.includes("<head")) {
-        console.warn(`[image-downloader] Rejected HTML content disguised as image from ${url}`);
-        return void 0;
-      }
-      console.warn(`[image-downloader] Unknown image format from ${url}, saving anyway`);
-    }
-    fs4.writeFileSync(filePath, buffer);
-    return filePath;
-  } catch (err) {
-    console.error(`[image-downloader] Error downloading ${url}:`, err);
-    return void 0;
-  }
-}
-function getSafeExtension2(url) {
-  try {
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
-    const match = pathname.match(/\.([a-z0-9]+)$/i);
-    if (match) {
-      const ext = match[1].toLowerCase();
-      if (ALLOWED_EXTENSIONS.has(ext)) return ext;
-    }
-  } catch {
-  }
-  return "jpg";
-}
-
-// src/zalo/message-normalizer.ts
-var DEDUP_TTL = 6e4;
-var DEDUP_MAX2 = 2e3;
-var processedMsgIds = /* @__PURE__ */ new Map();
-function isDuplicateMsg(msgId) {
-  if (!msgId) return false;
-  const now = Date.now();
-  if (processedMsgIds.has(msgId)) return true;
-  if (processedMsgIds.size >= DEDUP_MAX2) {
-    for (const [id, ts] of processedMsgIds) {
-      if (now - ts > DEDUP_TTL) processedMsgIds.delete(id);
-    }
-    if (processedMsgIds.size >= DEDUP_MAX2) {
-      const oldest = processedMsgIds.keys().next().value;
-      if (oldest) processedMsgIds.delete(oldest);
-    }
-  }
-  processedMsgIds.set(msgId, now);
-  return false;
-}
-var SYSTEM_NOTIFICATION_PATTERNS = [
-  /^Bạn vừa kết bạn với\b/i,
-  /^You (?:are|were) (?:now )?(?:friends|connected) with\b/i,
-  /^You just became friends with\b/i
-];
-var IMAGE_URL_RE = /\.(?:jpe?g|png|gif|webp|bmp|svg|tiff?)(?:[?#]|$)/i;
-var GENERIC_FILE_URL_RE = /\.(?:pdf|docx?|xlsx?|pptx?|csv|txt|zip|rar)(?:[?#]|$)/i;
-function isSystemNotificationContent(content) {
-  const normalized = content.trim();
-  return SYSTEM_NOTIFICATION_PATTERNS.some((pattern) => pattern.test(normalized));
-}
-function pushMediaUrl(mediaUrls, mediaTypes, url, mimeType) {
-  if (typeof url !== "string" || !url.trim()) return;
-  const trimmed = url.trim();
-  if (mediaUrls.includes(trimmed)) return;
-  mediaUrls.push(trimmed);
-  mediaTypes.push(mimeType);
-}
-function mediaMimeFromObject(obj) {
-  const raw = [obj.type, obj.mediaType, obj.contentType, obj.mimeType, obj.msgType].map((value) => typeof value === "string" || typeof value === "number" ? String(value).toLowerCase() : "").join(" ");
-  if (raw.includes("photo") || raw.includes("image")) return "image/jpeg";
-  if (raw.includes("video")) return "video/mp4";
-  if (raw.includes("audio") || raw.includes("voice")) return "audio/mpeg";
-  if (raw.includes("file") || raw.includes("attach")) return "application/octet-stream";
-  return void 0;
-}
-function looksLikeExplicitFileObject(obj, url) {
-  const hasFileName = ["fileName", "filename", "name"].some((key) => typeof obj[key] === "string" && String(obj[key]).trim().length > 0);
-  const hasFileSize = ["fileSize", "size"].some((key) => obj[key] !== void 0 && obj[key] !== null);
-  return hasFileName || hasFileSize || GENERIC_FILE_URL_RE.test(url) || IMAGE_URL_RE.test(url);
-}
-function fileSha256(filePath) {
-  try {
-    return crypto3.createHash("sha256").update(fs5.readFileSync(filePath)).digest("hex");
-  } catch {
-    return void 0;
-  }
-}
-function looksLikeHtmlFile(filePath) {
-  try {
-    const head = fs5.readFileSync(filePath).subarray(0, 512).toString("utf8").trim().toLowerCase();
-    return head.includes("<!doctype") || head.includes("<html") || head.includes("<head");
-  } catch {
-    return false;
-  }
-}
-function extractMediaFromObject(obj, mediaUrls, mediaTypes) {
-  if (!obj || typeof obj !== "object") return "";
-  const record = obj;
-  const title = typeof record.title === "string" ? record.title : "";
-  const description = typeof record.description === "string" ? record.description : "";
-  const mimeType = mediaMimeFromObject(record);
-  const photoUrl = record.hdUrl || record.normalUrl || record.oriUrl;
-  if (photoUrl) {
-    pushMediaUrl(mediaUrls, mediaTypes, photoUrl, "image/jpeg");
-  }
-  const href = typeof record.href === "string" ? record.href : typeof record.url === "string" ? record.url : "";
-  if (href && (mimeType || looksLikeExplicitFileObject(record, href))) {
-    pushMediaUrl(mediaUrls, mediaTypes, href, mimeType ?? (IMAGE_URL_RE.test(href) ? "image/jpeg" : "application/octet-stream"));
-  }
-  return title || description || (mediaUrls.length > 0 ? "[Media attachment]" : "");
-}
-function convertToZaloClawMessage(msg) {
-  const data = msg.data;
-  let content = "";
-  const mediaUrls = [];
-  const mediaTypes = [];
-  if (typeof data.content === "string") {
-    const trimmed = data.content.trim();
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (typeof parsed === "object" && parsed !== null) {
-          content = extractMediaFromObject(parsed, mediaUrls, mediaTypes);
-          if (!content && !mediaUrls.length) content = data.content;
-        } else {
-          content = data.content;
-        }
-      } catch {
-        content = data.content;
-      }
-    } else {
-      content = data.content;
-    }
-  } else if (typeof data.content === "object" && data.content !== null) {
-    content = extractMediaFromObject(data.content, mediaUrls, mediaTypes);
-    if (!content && mediaUrls.length > 0) content = "[Media attachment]";
-  }
-  if (content && isSystemNotificationContent(content)) return null;
-  if (!content.trim() && mediaUrls.length === 0) return null;
-  const quote = data.quote;
-  const isGroup = msg.type === ThreadType3.Group;
-  const threadId = msg.threadId;
-  const rawSenderId = data.uidFrom;
-  const senderId = !isGroup && (!rawSenderId?.trim() || !/^\d+$/.test(rawSenderId.trim())) ? threadId : rawSenderId;
-  const senderName = data.dName ?? "";
-  const timestamp = data.ts ? parseInt(data.ts, 10) : Math.floor(Date.now() / 1e3);
-  const mentions = isGroup && msg.data.mentions ? msg.data.mentions : void 0;
-  return {
-    threadId,
-    msgId: data.msgId,
-    cliMsgId: data.cliMsgId,
-    type: isGroup ? 1 : 0,
-    content: content || "[Media]",
-    mediaUrls: mediaUrls.length > 0 ? mediaUrls : void 0,
-    mediaTypes: mediaTypes.length > 0 ? mediaTypes : void 0,
-    mentions: mentions ?? void 0,
-    timestamp,
-    quote: quote ? {
-      msg: quote.msg || void 0,
-      fromId: quote.ownerId || void 0,
-      fromName: quote.fromD || void 0,
-      msgId: quote.globalMsgId ? String(quote.globalMsgId) : void 0,
-      ts: quote.ts || void 0
-    } : void 0,
-    metadata: {
-      isGroup,
-      groupId: isGroup ? threadId : void 0,
-      senderName,
-      fromId: senderId
-    }
-  };
-}
-function isImageAttachment(url, mediaType) {
-  const type = mediaType?.toLowerCase() ?? "";
-  return type.startsWith("image/") || IMAGE_URL_RE.test(url);
-}
-async function downloadInboundMedia(message) {
-  const urls = message.mediaUrls ?? [];
-  const mediaTypes = message.mediaTypes ?? [];
-  const downloaded = [];
-  const seenUrls = /* @__PURE__ */ new Set();
-  const seenHashes = /* @__PURE__ */ new Set();
-  for (let i = 0; i < urls.length; i++) {
-    const url = urls[i];
-    if (seenUrls.has(url)) continue;
-    seenUrls.add(url);
-    const mediaType = mediaTypes[i];
-    const localPath = isImageAttachment(url, mediaType) ? await downloadImageFromUrl(url) : await downloadFileFromUrl(url);
-    if (!localPath) continue;
-    const hash = fileSha256(localPath);
-    if (hash && seenHashes.has(hash)) {
-      try {
-        fs5.rmSync(localPath, { force: true });
-      } catch {
-      }
-      continue;
-    }
-    if (hash) seenHashes.add(hash);
-    if (!downloaded.includes(localPath)) downloaded.push(localPath);
-  }
-  return downloaded;
-}
-async function filterAttachableMediaPaths(paths) {
-  const filtered = [];
-  for (const filePath of paths) {
-    try {
-      const metadata = await sharp2(filePath).metadata();
-      if (metadata.width && metadata.height) {
-        const minSide = Math.min(metadata.width, metadata.height);
-        const maxSide = Math.max(metadata.width, metadata.height);
-        const aspectRatio = maxSide / minSide;
-        if (minSide < 180) {
-          console.warn(`[zaloclaw] Dropping tiny image attachment ${filePath} (${metadata.width}x${metadata.height})`);
-          continue;
-        }
-        if (aspectRatio >= 4 && minSide < 300) {
-          console.warn(`[zaloclaw] Dropping banner-like image attachment ${filePath} (${metadata.width}x${metadata.height})`);
-          continue;
-        }
-      }
-    } catch {
-      if (IMAGE_URL_RE.test(filePath) || looksLikeHtmlFile(filePath)) {
-        console.warn(`[zaloclaw] Dropping invalid image attachment ${filePath}`);
-        continue;
-      }
-    }
-    filtered.push(filePath);
-  }
-  return filtered;
-}
-export {
-  HermesBridgeOrchestrator,
-  HermesCliRunner,
-  HttpZaloGatewayClient,
-  MockGatewayZaloClient,
-  SUPPORTED_ACTIONS,
-  WebhookDispatcher,
-  ZcaGatewayZaloClient,
-  actionRegistry,
-  actionResponse,
-  convertToZaloClawMessage,
-  createGatewayServer,
-  createHermesBridgeServer,
-  downloadInboundMedia,
-  extractBearerToken,
-  filterAttachableMediaPaths,
-  friendsResponse,
-  groupMembersResponse,
-  groupsResponse,
-  healthResponse,
-  isAuthorized,
-  isDuplicateMsg,
-  isSupportedAction,
-  isSystemNotificationContent,
-  listenGateway,
-  listenHermesBridge,
-  loadGatewayConfig,
-  loadHermesBridgeConfig,
-  processedMsgIds,
-  requireBearerToken,
-  sendMessageResponse,
-  validateSendMessagePayload,
-  versionResponse
-};
+process.once("SIGINT", () => {
+  void shutdown().finally(() => process.exit(0));
+});
+process.once("SIGTERM", () => {
+  void shutdown().finally(() => process.exit(0));
+});

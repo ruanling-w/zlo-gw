@@ -34,6 +34,7 @@
 - [x] Added authenticated runtime policy API (`GET /policy`, `PUT /policy`) so external agents can manage allowed users/groups without editing env.
 - [x] Added policy convenience endpoints, directory query filters, and registered requested next action names with stable placeholder responses where adapter wiring is still pending.
 - [x] Added inbound voice/media attachment normalization and wired outbound `send-voice` through the gateway client boundary.
+- [x] Added one-command app entrypoint, Dockerfile, QR login API endpoints, and cleaned production action registry to wired actions only.
 - [x] Standardized policy/webhook failure logs with event-style names and redacted sender/thread IDs.
 
 ## Verification Evidence

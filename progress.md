@@ -88,6 +88,10 @@
 - Added directory query filtering for friends, groups, and group members.
 - Registered requested next action names for attachments, message management, user lookup, group lookup, and conversation state; unsupported adapter paths return stable `502 not implemented` responses until real `zca-js` calls are wired.
 - Added inbound attachment normalization for voice/media-like Zalo messages and wired outbound `send-voice` through `zca-js`.
+- Added combined app entrypoint (`npm start` / `dist/app.js`) to run gateway and Hermes bridge with one command.
+- Added Dockerfile and `.dockerignore` for container packaging with `/data` volume.
+- Added authenticated QR login API endpoints: `POST /login/qr/start`, `GET /login/qr/status`, and `GET /login/qr/image`.
+- Cleaned production action registry back to stable wired actions; placeholder actions are not exposed.
 - Webhook failure logging now uses stable event-style log `event=webhook.delivery.failed`.
 - `.env.example` now documents enforced gateway-side allowlist variables instead of planned placeholders.
 

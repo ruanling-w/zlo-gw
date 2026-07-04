@@ -11,6 +11,7 @@ import { friendsResponse, groupMembersResponse, groupsResponse } from "./routes/
 import { decideInboundPolicy, logPolicyDecision } from "./policy.js";
 import { GatewayPolicyStore } from "./policy-store.js";
 import { policyListResponse, policyResponse } from "./routes/policy.js";
+import { loginQrImageResponse, loginQrStatusResponse, startLoginQrResponse } from "./routes/login.js";
 
 export type GatewayServerOptions = {
   config?: GatewayConfig;
@@ -37,6 +38,11 @@ function defaultRuntime(): GatewayRuntimeInfo {
 }
 
 function sendJson(response: ServerResponse, result: JsonResponse): void {
+  if (Buffer.isBuffer(result.body)) {
+    response.writeHead(result.status, result.headers);
+    response.end(result.body);
+    return;
+  }
   const body = JSON.stringify(result.body);
   response.writeHead(result.status, {
     "content-type": "application/json; charset=utf-8",
@@ -110,6 +116,24 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
       if (path === "/version") {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         return sendJson(response, versionResponse(runtime));
+      }
+      if (path === "/login/qr/start") {
+        if (request.method !== "POST") return sendJson(response, methodNotAllowed());
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        return sendJson(response, await startLoginQrResponse());
+      }
+      if (path === "/login/qr/status") {
+        if (request.method !== "GET") return sendJson(response, methodNotAllowed());
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        return sendJson(response, loginQrStatusResponse());
+      }
+      if (path === "/login/qr/image") {
+        if (request.method !== "GET") return sendJson(response, methodNotAllowed());
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        return sendJson(response, loginQrImageResponse());
       }
       if (path === "/messages/send") {
         if (request.method !== "POST") return sendJson(response, methodNotAllowed());
