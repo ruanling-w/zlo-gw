@@ -1,16 +1,17 @@
 /**
  * Credential storage with security hardening.
  *
- * [H1] File permissions set to 0600 (owner read/write only).
- * Note: Full encryption is not implemented here to avoid key management complexity,
- * but file permissions prevent other users/processes from reading credentials.
+ * Credentials are runtime data, not source/config. Store them under a project-local
+ * data directory so Docker can mount the directory as a volume.
  */
 
-import { readFileSync, writeFileSync, unlinkSync, existsSync, chmodSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { readFileSync, writeFileSync, unlinkSync, existsSync, chmodSync, mkdirSync, copyFileSync } from "node:fs";
+import { join, dirname, isAbsolute } from "node:path";
 import { homedir } from "node:os";
 
-const CREDENTIALS_PATH = join(homedir(), ".openclaw", "zaloclaw-credentials.json");
+const DEFAULT_DATA_DIR = "run";
+const CREDENTIALS_FILE = "zalo-credentials.json";
+const LEGACY_CREDENTIALS_PATH = join(homedir(), ".openclaw", "zaloclaw-credentials.json");
 
 export type ZaloClawCredentials = {
   imei: string;
@@ -19,28 +20,48 @@ export type ZaloClawCredentials = {
   language?: string;
 };
 
+export function getGatewayDataDir(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env.ZALO_GATEWAY_DATA_DIR?.trim() || DEFAULT_DATA_DIR;
+  return isAbsolute(configured) ? configured : join(process.cwd(), configured);
+}
+
+export function getCredentialsPath(env: NodeJS.ProcessEnv = process.env): string {
+  return join(getGatewayDataDir(env), "credentials", CREDENTIALS_FILE);
+}
+
+function migrateLegacyCredentialsIfNeeded(path = getCredentialsPath()): void {
+  if (existsSync(path) || !existsSync(LEGACY_CREDENTIALS_PATH)) return;
+  const dir = dirname(path);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
+  copyFileSync(LEGACY_CREDENTIALS_PATH, path);
+  try { chmodSync(path, 0o600); } catch {
+    // Non-critical on platforms without POSIX permissions.
+  }
+}
+
 /**
  * Save credentials to disk with restrictive file permissions.
- * [H1] chmod 0600 — only the file owner can read/write.
  */
 export function saveCredentials(data: ZaloClawCredentials): void {
-  const dir = dirname(CREDENTIALS_PATH);
+  const path = getCredentialsPath();
+  const dir = dirname(path);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
-  writeFileSync(CREDENTIALS_PATH, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 0o600 });
-  // Ensure permissions even if file existed with different mode
-  try { chmodSync(CREDENTIALS_PATH, 0o600); } catch {
-    // Non-critical — may fail on Windows
+  writeFileSync(path, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 0o600 });
+  try { chmodSync(path, 0o600); } catch {
+    // Non-critical — may fail on Windows.
   }
 }
 
 export function loadCredentials(): ZaloClawCredentials | null {
-  if (!existsSync(CREDENTIALS_PATH)) {
+  const path = getCredentialsPath();
+  migrateLegacyCredentialsIfNeeded(path);
+  if (!existsSync(path)) {
     return null;
   }
   try {
-    const raw = readFileSync(CREDENTIALS_PATH, "utf-8");
+    const raw = readFileSync(path, "utf-8");
     return JSON.parse(raw) as ZaloClawCredentials;
   } catch {
     return null;
@@ -48,13 +69,16 @@ export function loadCredentials(): ZaloClawCredentials | null {
 }
 
 export function deleteCredentials(): void {
-  if (existsSync(CREDENTIALS_PATH)) {
-    unlinkSync(CREDENTIALS_PATH);
+  const path = getCredentialsPath();
+  if (existsSync(path)) {
+    unlinkSync(path);
   }
 }
 
 export function hasCredentials(): boolean {
-  return existsSync(CREDENTIALS_PATH);
+  const path = getCredentialsPath();
+  migrateLegacyCredentialsIfNeeded(path);
+  return existsSync(path);
 }
 
 export function refreshCredentials(freshCookies: unknown): void {

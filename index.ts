@@ -1,54 +1,62 @@
-import type { AnyAgentTool, OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
-import { zaloClawPlugin } from "./src/channel/channel.js";
-import { setZaloClawRuntime } from "./src/runtime/runtime.js";
-import { ZaloClawToolSchema, executeZaloClawTool } from "./src/tools/tool.js";
-
-const plugin = {
-  id: "zaloclaw",
-  name: "ZaloClaw",
-  description: "Zalo personal account messaging via zca-js library",
-  configSchema: emptyPluginConfigSchema(),
-  register(api: OpenClawPluginApi) {
-    setZaloClawRuntime(api.runtime);
-    // Register channel plugin (for onboarding & gateway)
-    api.registerChannel({ plugin: zaloClawPlugin });
-
-    // Register agent tool
-    api.registerTool({
-      name: "zaloclaw",
-      label: "ZaloClaw",
-      description:
-        "Complete Zalo personal account management via zca-js (147 actions). " +
-        "Messaging: send, image, link, send-to-stranger, send-video, send-voice, send-sticker, send-card, send-bank-card, " +
-        "delete-message, undo-message (recall), forward-message, add-reaction, send-typing. " +
-        "Friend: find-user, send-friend-request, accept/reject-friend-request, get-sent/friend-requests, " +
-        "undo-friend-request, unfriend, check-friend-status, set/remove-friend-nickname, get-online-friends, " +
-        "get-friend-recommendations, get-alias-list, get-related-friend-groups. " +
-        "Groups: list/search-groups, get-group-info, create-group, add/remove-to/from-group, leave-group, " +
-        "rename-group, add/remove-group-admin, change-group-owner, disperse-group, update-group-settings, " +
-        "enable/disable/get-group-link, get/review-pending-members, " +
-        "get-group-blocked, block/unblock-group-member, get-group-members-info, " +
-        "join-group-link, invite-to-groups, get-group-invites, join/delete-group-invite. " +
-        "Polls: create-poll, vote-poll, lock-poll, get-poll-detail, add-poll-options, share-poll. " +
-        "Reminders: create/remove/edit-reminder, list-reminders. " +
-        "Conversation: mute/unmute/pin/unpin-conversation, delete-chat, hide/unhide-conversation, " +
-        "get-hidden-conversations, mark/unmark-unread, get-unread-marks, " +
-        "set-auto-delete-chat, get-auto-delete-chats, get-archived-chats. " +
-        "Quick Messages: list/add/remove/update-quick-message. " +
-        "Auto-Reply: list/create/update/delete-auto-reply. " +
-        "Profile: me, get-user-info, last-online, get-qr, update-profile, " +
-        "change-avatar, delete-avatar, get-avatar-list, reuse-avatar. " +
-        "Settings: get-settings, update-setting, update-active-status. " +
-        "Notes: create-note, edit-note, get-boards, get-labels. " +
-        "Catalogs: create/update/delete-catalog, get-catalogs, create/update/delete-product, get-products. " +
-        "Block: block/unblock-user (OpenClaw), zalo-block/unblock-user (Zalo-level), block-view-feed. " +
-        "Misc: search-stickers, parse-link, send-report, get-biz-account. " +
-        "Names are auto-resolved to IDs.",
-      parameters: ZaloClawToolSchema,
-      execute: executeZaloClawTool,
-    } as AnyAgentTool);
-  },
-};
-
-export default plugin;
+export { extractBearerToken, isAuthorized, requireBearerToken } from "./src/gateway/auth.js";
+export { loadGatewayConfig } from "./src/gateway/config.js";
+export { createGatewayServer, listenGateway } from "./src/gateway/server.js";
+export { WebhookDispatcher } from "./src/gateway/webhooks.js";
+export { loadHermesBridgeConfig } from "./src/bridge/hermes/config.js";
+export { HermesCliRunner } from "./src/bridge/hermes/hermes-cli.js";
+export { HermesBridgeOrchestrator } from "./src/bridge/hermes/orchestrator.js";
+export { createHermesBridgeServer, listenHermesBridge } from "./src/bridge/hermes/server.js";
+export { HttpZaloGatewayClient } from "./src/bridge/hermes/zalo-gateway-client.js";
+export { MockGatewayZaloClient } from "./src/gateway/zalo-client.mock.js";
+export { ZcaGatewayZaloClient } from "./src/gateway/zalo-client.js";
+export { healthResponse, versionResponse } from "./src/gateway/routes/health.js";
+export { friendsResponse, groupMembersResponse, groupsResponse } from "./src/gateway/routes/directory.js";
+export { actionRegistry, actionResponse, isSupportedAction, SUPPORTED_ACTIONS } from "./src/gateway/routes/actions.js";
+export { sendMessageResponse, validateSendMessagePayload } from "./src/gateway/routes/messages.js";
+export type { GatewayActionName } from "./src/gateway/routes/actions.js";
+export type {
+  BridgeProcessResult,
+  HermesBridgeConfig,
+  HermesRunInput,
+  HermesRunner,
+  HermesRunResult,
+  ZaloGatewayClient,
+  ZaloGatewaySendInput,
+  ZaloGatewaySendResult,
+  ZaloWebhookEvent,
+} from "./src/bridge/hermes/types.js";
+export type { WebhookDelivery, WebhookDispatchResult, WebhookDispatcherOptions } from "./src/gateway/webhooks.js";
+export type { SendMessageError, SendMessageRequest, SendMessageSuccess } from "./src/gateway/routes/messages.js";
+export type {
+  Disposable,
+  GatewayZaloClient,
+  NormalizedZaloEvent,
+  SendMessageResult,
+  SendTextInput,
+  ZaloGatewayStatus,
+} from "./src/gateway/zalo-client.js";
+export type {
+  GatewayConfig,
+  GatewayHealth,
+  GatewayRuntimeInfo,
+  GatewayStatus,
+  JsonResponse,
+  ZaloConnectionStatus,
+} from "./src/gateway/types.js";
+export {
+  convertToZaloClawMessage,
+  downloadInboundMedia,
+  filterAttachableMediaPaths,
+  isDuplicateMsg,
+  isSystemNotificationContent,
+  processedMsgIds,
+} from "./src/zalo/message-normalizer.js";
+export type {
+  ResolvedZaloClawAccount,
+  ZaloClawAccountConfig,
+  ZaloClawConfig,
+  ZaloClawFriend,
+  ZaloClawGroup,
+  ZaloClawMessage,
+  ZaloClawUserInfo,
+} from "./src/runtime/types.js";

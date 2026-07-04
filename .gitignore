@@ -31,6 +31,9 @@ npm-debug.log*
 qr-*.png
 session-*.json
 
+# Runtime data
+run/
+
 # Temp files
 tmp/
 *.tmp

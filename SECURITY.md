@@ -1,31 +1,51 @@
-# Chính sách bảo mật
+# Security Notes
 
-## Phiên bản được hỗ trợ
+Zalo API Gateway is intended to expose a Zalo personal account through local HTTP APIs and outbound webhooks. Zalo personal account automation is unofficial and carries account and operational risk.
 
-| Phiên bản | Hỗ trợ |
-|---------|-----------|
-| 2.x     | ✅        |
-| < 2.0   | ❌        |
+## Account Safety
 
-## Báo cáo lỗ hổng bảo mật
+- Use a secondary Zalo account for development and testing.
+- Do not use a primary personal account for early gateway testing.
+- Expect QR/session checkpoint flows to change when Zalo updates its web client.
+- Keep the gateway local-only until auth, allowlists, and rate limits are verified.
 
-**KHÔNG mở issue công khai cho lỗ hổng bảo mật.**
+## Secrets
 
-Email: monasprox@users.noreply.github.com
+Never commit or paste real values for:
 
-Vui lòng bao gồm:
-- Mô tả lỗ hổng
-- Các bước tái tạo
-- Tác động tiềm tàng
-- Đề xuất sửa (nếu có)
+- Zalo cookies or session data.
+- IMEI values.
+- User agent strings tied to an account session.
+- QR payloads.
+- Bearer tokens.
+- Real user IDs, group IDs, or thread IDs when sharing logs.
 
-Bạn sẽ nhận được phản hồi trong vòng 72 giờ. Các vấn đề nghiêm trọng sẽ được vá và phát hành sớm nhất có thể.
+Use `[REDACTED]` in docs, logs, examples, and handoff notes.
 
-## Phạm vi
+## Gateway Exposure
 
-Plugin này xử lý:
-- Thông tin đăng nhập Zalo API (cookies, IMEI, user agent)
-- Định tuyến nội dung tin nhắn giữa Zalo và OpenClaw
-- Phân giải danh tính người dùng
+Mutating endpoints must require bearer auth before they are connected to a real Zalo account.
 
-Các lo ngại bảo mật liên quan đến lưu trữ credentials, injection tin nhắn, hoặc truy cập trái phép nằm trong phạm vi.
+Recommended defaults:
+
+```text
+ZALO_GATEWAY_HOST=127.0.0.1
+ZALO_GATEWAY_PORT=8787
+ZALO_GATEWAY_TOKEN=[REDACTED]
+```
+
+Do not bind to `0.0.0.0` unless the deployment has network-level access control.
+
+## Agent Safety
+
+Before connecting Hermes or any other agent runtime:
+
+- Configure allowlists for senders and groups.
+- Add loop protection so bot replies do not recursively trigger themselves.
+- Add rate limits per thread and globally.
+- Log rejected events without leaking secrets.
+- Prefer dry-run/mocked Zalo client tests before real-account tests.
+
+## Dependency Notes
+
+This project uses `zca-js`, an unofficial Zalo API library. Treat upstream changes as compatibility risk and verify behavior with a secondary account after dependency updates.

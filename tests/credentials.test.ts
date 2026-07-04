@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { saveCredentials, loadCredentials, deleteCredentials, hasCredentials } from "../src/client/credentials.js";
+import { getCredentialsPath, getGatewayDataDir, loadCredentials, hasCredentials } from "../src/client/credentials.js";
 
 // Use a temp directory to avoid touching real credentials
 const ORIGINAL_HOME = os.homedir();
@@ -15,7 +15,16 @@ describe("credentials", () => {
   const testDir = path.join(os.tmpdir(), `zaloclaw-test-creds-${Date.now()}`);
   const credPath = path.join(testDir, ".openclaw", "zaloclaw-credentials.json");
 
-  // Note: We can't easily override the credential path since it uses homedir().
+  it("resolves credential storage under the configured gateway data directory", () => {
+    const dataDir = path.join(os.tmpdir(), "zalo-gateway-data-test");
+
+    expect(getGatewayDataDir({ ZALO_GATEWAY_DATA_DIR: dataDir } as NodeJS.ProcessEnv)).toBe(dataDir);
+    expect(getCredentialsPath({ ZALO_GATEWAY_DATA_DIR: dataDir } as NodeJS.ProcessEnv)).toBe(
+      path.join(dataDir, "credentials", "zalo-credentials.json"),
+    );
+  });
+
+  // Note: We can't easily override the credential path since it uses process env.
   // These tests verify the module's exported behavior.
 
   it("loadCredentials returns null when no file exists", () => {

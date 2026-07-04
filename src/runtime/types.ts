@@ -44,6 +44,32 @@ export type ZaloClawConfig = {
   accounts?: Record<string, ZaloClawAccountConfig>;
 };
 
+export type GatewayRuntimeEnv = {
+  log: (message: string) => void;
+  error: (message: string) => void;
+};
+
+export type GatewayRuntimeConfig = {
+  channels?: {
+    defaults?: {
+      groupPolicy?: "open" | "allowlist" | "disabled";
+    };
+  };
+  commands?: {
+    useAccessGroups?: boolean;
+  };
+  session?: {
+    store?: string;
+  };
+  messages?: {
+    ackReaction?: string;
+    ackReactionScope?: string;
+    removeAckAfterReply?: boolean;
+  };
+};
+
+export type MarkdownTableMode = "preserve" | "strip" | "compact" | "markdown" | string;
+
 export type ResolvedZaloClawAccount = {
   accountId: string;
   name?: string;

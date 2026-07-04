@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { _isDuplicateMsg as isDuplicateMsg, _processedMsgIds as processedMsgIds } from "../src/channel/monitor.js";
+import { _isDuplicateMsg as isDuplicateMsg, _processedMsgIds as processedMsgIds } from "../src/zalo/message-normalizer.js";
 
 describe("isDuplicateMsg", () => {
   beforeEach(() => {

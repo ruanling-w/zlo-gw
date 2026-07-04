@@ -8,7 +8,7 @@ import {
   _convertToZaloClawMessage as convertToZaloClawMessage,
   _filterAttachableMediaPaths as filterAttachableMediaPaths,
   _isSystemNotificationContent as isSystemNotificationContent,
-} from "../src/channel/monitor.js";
+} from "../src/zalo/message-normalizer.js";
 
 const tempFiles: string[] = [];
 

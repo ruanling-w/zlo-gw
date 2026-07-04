@@ -1,0 +1,210 @@
+{
+  "features": [
+    {
+      "id": "phase-0-harness-baseline",
+      "name": "Phase 0 - Stabilize Harness And Baseline",
+      "description": "Keep the coding harness reliable and resolve or explicitly isolate the current OpenClaw SDK typecheck blocker before gateway implementation expands.",
+      "dependencies": [],
+      "status": "active",
+      "likelyFiles": [
+        "AGENTS.md",
+        "feature_list.json",
+        "progress.md",
+        "session-handoff.md",
+        "init.sh",
+        "src/channel/monitor.ts",
+        "src/types/vendor.d.ts"
+      ],
+      "affectedSymbols": [
+        "OpenClawConfig",
+        "MarkdownTableMode",
+        "RuntimeEnv"
+      ],
+      "codebaseMemoryQueries": [
+        "Find imports of openclaw/plugin-sdk/zalouser and usage of OpenClawConfig MarkdownTableMode RuntimeEnv",
+        "Trace src/channel/monitor.ts callers before adding compatibility boundary"
+      ],
+      "verificationCommands": [
+        "node /home/ruanling/.hermes/skills/autonomous-ai-agents/harness-creator/scripts/validate-harness.mjs --target /home/ruanling/code/zalo-api-gateway",
+        "npm test",
+        "npm run typecheck",
+        "./init.sh"
+      ],
+      "doneCriteria": [
+        "Harness validator score remains at least 85/100.",
+        "npm test passes after harness updates.",
+        "The typecheck blocker is either fixed or explicitly documented as the only reason ./init.sh is blocked.",
+        "docs/GATEWAY_PLAN.md is present and referenced by harness state files."
+      ],
+      "verificationEvidence": [
+        {
+          "command": "npm test",
+          "status": "passed",
+          "notes": "9 test files passed, 104 tests passed before plan update. Rerun after latest plan edits."
+        },
+        {
+          "command": "./init.sh",
+          "status": "blocked",
+          "notes": "Fails at npm run typecheck because openclaw/plugin-sdk/zalouser does not export OpenClawConfig, MarkdownTableMode, or RuntimeEnv used by src/channel/monitor.ts."
+        }
+      ],
+      "evidence": "Gateway implementation plan is being added in docs/GATEWAY_PLAN.md."
+    },
+    {
+      "id": "phase-1-gateway-skeleton",
+      "name": "Phase 1 - Standalone Gateway Skeleton",
+      "description": "Add a standalone HTTP server entrypoint and health/version routes without requiring OpenClaw runtime or real Zalo login in tests.",
+      "dependencies": ["phase-0-harness-baseline"],
+      "status": "not-started",
+      "likelyFiles": [
+        "src/gateway/server.ts",
+        "src/gateway/routes/health.ts",
+        "src/gateway/config.ts",
+        "src/gateway/types.ts",
+        "src/gateway/auth.ts",
+        "src/gateway/index.ts",
+        "tests/gateway/health.test.ts",
+        "package.json"
+      ],
+      "affectedSymbols": [
+        "createGatewayServer",
+        "loadGatewayConfig",
+        "requireGatewayAuth"
+      ],
+      "codebaseMemoryQueries": [
+        "Inspect current package scripts and module format before adding standalone entrypoint",
+        "Find existing config parsing conventions in src/config"
+      ],
+      "verificationCommands": ["npm test", "npm run typecheck"],
+      "doneCriteria": [
+        "Server can be instantiated in tests without real Zalo login.",
+        "GET /health returns service status and Zalo client connection state.",
+        "GET /version returns package/version/runtime info.",
+        "Auth helper and route shape have tests."
+      ],
+      "verificationEvidence": [],
+      "evidence": ""
+    },
+    {
+      "id": "phase-2-zalo-client-boundary",
+      "name": "Phase 2 - Zalo Client Boundary",
+      "description": "Wrap zca-js login/session/listener/send behavior behind a gateway-owned interface so route code does not depend on OpenClaw runtime.",
+      "dependencies": ["phase-1-gateway-skeleton"],
+      "status": "not-started",
+      "likelyFiles": [
+        "src/gateway/zalo-client.ts",
+        "src/client/zalo-client.ts",
+        "src/client/credentials.ts",
+        "src/channel/send.ts",
+        "src/channel/monitor.ts",
+        "tests/gateway/zalo-client.test.ts"
+      ],
+      "affectedSymbols": [
+        "GatewayZaloClient",
+        "ZaloClient",
+        "send"
+      ],
+      "codebaseMemoryQueries": [
+        "Trace send message path from channel/tool to zca-js",
+        "Find login and QR session lifecycle in client modules"
+      ],
+      "verificationCommands": ["npm test", "npm run typecheck"],
+      "doneCriteria": [
+        "Gateway route code depends only on GatewayZaloClient interface.",
+        "Unit tests use a mocked Zalo client.",
+        "Existing OpenClaw plugin code remains test-compatible."
+      ],
+      "verificationEvidence": [],
+      "evidence": ""
+    },
+    {
+      "id": "phase-3-messaging-mvp",
+      "name": "Phase 3 - Messaging MVP",
+      "description": "Add authenticated POST /messages/send and normalized inbound message webhook dispatch.",
+      "dependencies": ["phase-2-zalo-client-boundary"],
+      "status": "not-started",
+      "likelyFiles": [
+        "src/gateway/routes/messages.ts",
+        "src/gateway/webhooks.ts",
+        "src/gateway/events.ts",
+        "tests/gateway/messages.test.ts",
+        "tests/gateway/webhooks.test.ts"
+      ],
+      "affectedSymbols": [
+        "SendTextInput",
+        "NormalizedZaloEvent",
+        "WebhookDispatcher"
+      ],
+      "codebaseMemoryQueries": [
+        "Find existing message normalization and dedup logic",
+        "Find existing webhook or queue patterns if any"
+      ],
+      "verificationCommands": ["npm test", "npm run typecheck"],
+      "doneCriteria": [
+        "POST /messages/send requires bearer token.",
+        "Route validates required fields and returns stable JSON errors.",
+        "Inbound event shape is normalized and documented.",
+        "Webhook dispatcher handles success and failure paths in tests."
+      ],
+      "verificationEvidence": [],
+      "evidence": ""
+    },
+    {
+      "id": "phase-4-curated-action-registry",
+      "name": "Phase 4 - Curated Action Registry",
+      "description": "Expose POST /actions/:action for a small stable subset of zaloclaw actions before expanding toward the full action surface.",
+      "dependencies": ["phase-3-messaging-mvp"],
+      "status": "not-started",
+      "likelyFiles": [
+        "src/gateway/actions/registry.ts",
+        "src/gateway/routes/actions.ts",
+        "src/tools/tool.ts",
+        "tests/gateway/actions.test.ts",
+        "docs/GATEWAY_PLAN.md"
+      ],
+      "affectedSymbols": [
+        "ActionRegistry",
+        "executeZaloClawTool",
+        "ZaloClawToolSchema"
+      ],
+      "codebaseMemoryQueries": [
+        "Inspect ZaloClawToolSchema and executeZaloClawTool action dispatch",
+        "Find reusable validation for send reaction thread info group members mark read"
+      ],
+      "verificationCommands": ["npm test", "npm run typecheck"],
+      "doneCriteria": [
+        "Action registry has a typed handler map.",
+        "Initial actions include send, reply-message, add-reaction, get-thread-info, get-group-members, and mark-read where supported.",
+        "Tests cover each initial action with mocked Zalo client.",
+        "Docs list supported actions and phased action coverage."
+      ],
+      "verificationEvidence": [],
+      "evidence": ""
+    },
+    {
+      "id": "phase-5-hermes-integration-adapter",
+      "name": "Phase 5 - Hermes Integration Adapter",
+      "description": "Connect Hermes to the gateway through a thin external bridge or plugin without modifying Hermes core.",
+      "dependencies": ["phase-4-curated-action-registry"],
+      "status": "not-started",
+      "likelyFiles": [
+        "examples/hermes-webhook-bridge/**",
+        "docs/HERMES_INTEGRATION.md"
+      ],
+      "affectedSymbols": [
+        "HermesWebhookBridge"
+      ],
+      "codebaseMemoryQueries": [
+        "Inspect Hermes gateway plugin constraints only after standalone gateway is stable"
+      ],
+      "verificationCommands": ["npm test"],
+      "doneCriteria": [
+        "A Zalo message can trigger Hermes through webhook or adapter in a documented smoke flow.",
+        "Hermes reply can be sent back through POST /messages/send.",
+        "No Hermes core files are modified."
+      ],
+      "verificationEvidence": [],
+      "evidence": ""
+    }
+  ]
+}

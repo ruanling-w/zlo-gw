@@ -1,483 +1,362 @@
-<div align="center">
+# Zalo API Gateway
 
-# 🦞 zaloclaw
+Standalone HTTP API gateway for Zalo personal accounts, built from the useful Zalo-specific parts of `monas-team/zaloclaw` and refocused away from the OpenClaw plugin runtime.
 
-**Unofficial OpenClaw plugin — Zalo Personal Account Channel**
+The gateway owns the Zalo login/session, exposes local HTTP endpoints, and dispatches inbound Zalo messages to webhooks. Hermes, curl, n8n, or any custom app should connect to the gateway instead of talking directly to Zalo.
 
-Connect your personal Zalo account to an AI agent with **147 full-featured actions**.
+## Current Status
 
-[![CI](https://github.com/monas-team/zaloclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/monas-team/zaloclaw/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/zaloclaw?color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/zaloclaw)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![ClawHub](https://img.shields.io/badge/ClawHub-zaloclaw-FF6B35)](https://clawhub.ai/plugins/zaloclaw)
-[![OpenClaw](https://img.shields.io/badge/OpenClaw-%E2%89%A52026.2.0-7C3AED)](https://openclaw.ai)
-[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+Working now:
 
-[EN: Install](#install) · [VI: Cài đặt](#cài-đặt) · [Tính năng](#tính-năng) · [147 Actions](#147-actions) · [💬 Community](https://zalo.me/g/gigr4cnahvidpewxk74z)
+- `npm run gateway` starts the HTTP gateway.
+- Gateway listens on `http://127.0.0.1:8787` by default.
+- Zalo personal login/session can be managed with the existing CLI helpers.
+- Inbound Zalo messages can be received by the gateway.
+- Outbound Zalo text messages can be sent through HTTP.
+- Gateway can dispatch inbound events to configured webhooks.
+- Typecheck/tests pass through `./init.sh`.
 
-</div>
+Known gaps:
 
----
+- Logs are still basic and should be structured before production use.
+- Auto-reply/bridge consumers must be allowlisted before being trusted.
+- Webhook delivery currently retries only by the caller behavior; failed deliveries are logged but not queued durably.
+- Some action endpoints are placeholders until the `zca-js` adapter supports them.
 
-> ### ⚠️ Disclaimer — Dự án không chính thức
->
-> Dự án này **không có liên kết, không được phê duyệt và không được tài trợ** bởi **Zalo** hoặc **VNG Corporation**.
->
-> Zalo không cung cấp API chính thức cho tài khoản cá nhân và **không cho phép tự động hóa tài khoản cá nhân** theo [Điều khoản dịch vụ](https://zalo.vn/dieukhoan). Plugin hoạt động thông qua thư viện reverse-engineered [`zca-js`](https://zca-js.tdung.com/) và **có thể vi phạm ToS Zalo, dẫn đến tài khoản bị khóa hoặc đình chỉ**.
->
-> Được cung cấp **"as-is"** cho mục đích nghiên cứu và tự động hóa cá nhân. **Người dùng tự chịu toàn bộ rủi ro.**
+## Architecture
 
----
+```text
+Zalo personal account
+  <-> zca-js session/client
+  <-> Zalo API Gateway HTTP server
+  <-> Hermes bridge / curl / n8n / custom webhook consumers
+```
+
+Important rule: the gateway is the only component that talks to Zalo. Hermes and other agents should only call the gateway or receive gateway webhooks.
+
+## Requirements
+
+- Node.js >= 22
+- npm
+- A secondary Zalo personal account for testing
+
+Do not use a primary Zalo account. Zalo personal automation is unofficial and reverse-engineered through `zca-js`; behavior can break and accounts can be checkpointed or locked.
 
 ## Install
 
-> **⚠️ Disclaimer:** This project is **not affiliated with, endorsed by, or sponsored by Zalo or VNG Corporation.** Zalo does not provide an official API for personal accounts and [does not permit automation of personal accounts](https://zalo.vn/dieukhoan). This plugin uses the reverse-engineered [`zca-js`](https://github.com/nicholasxuu/zca-js) library and **may violate Zalo’s Terms of Service**, potentially leading to account suspension. Use at your own risk.
-
-**Requirements:** OpenClaw ≥ 2026.2.0 · Node.js ≥ 22 · Personal Zalo account (not OA)
-
----
-
-### Option A — ClawHub _(recommended)_
-
 ```bash
-# 1. Install
-openclaw plugins install clawhub:zaloclaw
-
-# 2. Restart gateway
-openclaw gateway restart
-
-# 3. Login via QR
-openclaw channels login --channel zaloclaw
+npm install
+cp .env.example .env
 ```
 
-A QR code appears in the terminal. Open your **Zalo app → Personal page → QR icon** and scan it.
+Edit `.env` and replace placeholder tokens. Never commit real cookies, IMEI, QR payloads, API tokens, webhook secrets, user IDs, or group IDs.
 
-After a successful scan:
-```bash
-openclaw status
-# Look for: ZaloClaw ✔  ON  connected
-```
+## Environment
 
----
-
-### Option B — npm
+Gateway:
 
 ```bash
-# 1. Install
-openclaw plugins install zaloclaw
-
-# 2. Restart gateway
-openclaw gateway restart
-
-# 3. Login via QR
-openclaw channels login --channel zaloclaw
+ZALO_GATEWAY_DATA_DIR=./run
+ZALO_GATEWAY_HOST=127.0.0.1
+ZALO_GATEWAY_PORT=8787
+ZALO_GATEWAY_TOKEN=change-me-gateway-token
 ```
 
-Same QR flow as Option A.
-
----
-
-### Option C — Manual clone
+Webhook dispatch:
 
 ```bash
-# 1. Clone
-git clone https://github.com/monas-team/zaloclaw.git ~/zaloclaw
-cd ~/zaloclaw
-npm install          # install runtime dependencies
-                     # (no build needed — dist/ is pre-built)
-
-# 2. Register with OpenClaw  ← required before channels login
-openclaw plugins install --link ~/zaloclaw
-
-# 3. Restart gateway
-openclaw gateway restart
-
-# 4. Login via QR
-openclaw channels login --channel zaloclaw
+ZALO_GATEWAY_WEBHOOKS=http://127.0.0.1:8790/webhooks/zalo
+ZALO_GATEWAY_WEBHOOK_TOKEN=change-me-bridge-token
 ```
 
----
-
-> **`channels login` not working?** If you see `Unsupported channel "zaloclaw"`, run `openclaw setup` instead — same QR flow, compatible with all OpenClaw versions.
-> This happens when the plugin was not registered via `openclaw plugins install`.
-
-> **Session expired?** Re-run `openclaw channels login --channel zaloclaw` and scan a new QR code.
-
-### Features at a glance
-
-| Category | Highlights |
-|----------|------------|
-| 💬 **Messaging** | Text, rich text, images, files, video, voice, stickers, link preview |
-| 👥 **Groups** | Create/manage groups, admins, polls, reminders, invite links |
-| 🤝 **Friends** | Find, add, block, nicknames, online status |
-| 🤖 **AI-native** | Mention gating, image buffering, quote context, typing indicator |
-| 🔐 **Access control** | DM policy, group policy, per-user allow/deny lists |
-| ⚙️ **Automation** | Auto-reply, quick messages, auto-unsend, read receipts |
-
-Full 147-action reference: [docs/agent-help.md](docs/agent-help.md)
-
----
-
-## Tại sao zaloclaw?
-
-Zalo (~75 triệu người dùng tại Việt Nam) **không có API bot cho tài khoản cá nhân** — chỉ có [Zalo OA](https://oa.zalo.me) dành cho doanh nghiệp với nhiều hạn chế. ZaloClaw lấp khoảng trống đó bằng cách bridge tài khoản Zalo cá nhân với [OpenClaw](https://github.com/nicholasxuu/openclaw), cho phép hội thoại AI và tự động hóa toàn diện qua Zalo.
-
----
-
-## Cài đặt
-
-**Yêu cầu:** OpenClaw ≥ 2026.2.0 · Node.js ≥ 22 · Tài khoản Zalo cá nhân (không phải OA)
-
----
-
-### Cách 1 — ClawHub _(khuyến nghị)_
+Hermes bridge, if used:
 
 ```bash
-# 1. Cài plugin
-openclaw plugins install clawhub:zaloclaw
-
-# 2. Khởi động lại gateway
-openclaw gateway restart
-
-# 3. Đăng nhập bằng QR
-openclaw channels login --channel zaloclaw
+HERMES_BRIDGE_HOST=127.0.0.1
+HERMES_BRIDGE_PORT=8790
+HERMES_BRIDGE_TOKEN=change-me-bridge-token
+HERMES_CLI=hermes
+HERMES_SESSION_PREFIX=zalo
+HERMES_TIMEOUT_MS=120000
+ZALO_GATEWAY_URL=http://127.0.0.1:8787
 ```
 
-Mã QR hiện ngay trên terminal. Mở **Zalo app → Trang cá nhân → icon QR** rồi quét.
-
-Sau khi quét thành công:
-```bash
-openclaw status
-# ZaloClaw ✔  ON  connected
-```
-
----
-
-### Cách 2 — npm
+Current allowlist fields are bridge-side placeholders:
 
 ```bash
-# 1. Cài plugin
-openclaw plugins install zaloclaw
-
-# 2. Khởi động lại gateway
-openclaw gateway restart
-
-# 3. Đăng nhập bằng QR
-openclaw channels login --channel zaloclaw
+HERMES_BRIDGE_ALLOWED_SENDERS=
+HERMES_BRIDGE_ALLOWED_THREADS=
 ```
 
-QR flow giống Cách 1.
+Use comma-separated Zalo sender IDs/thread IDs once allowlist enforcement is implemented. Until then, do not connect a real auto-reply agent to broad inbound traffic.
 
----
+## Login And Status
 
-### Cách 3 — Clone thủ công
+Run Zalo login:
 
 ```bash
-# 1. Clone và cài dependency
-git clone https://github.com/monas-team/zaloclaw.git ~/zaloclaw
-cd ~/zaloclaw
-npm install          # cài runtime deps (không cần build — dist/ đã có sẵn)
-
-# 2. Đăng ký với OpenClaw  ← bắt buộc trước channels login
-openclaw plugins install --link ~/zaloclaw
-
-# 3. Khởi động lại gateway
-openclaw gateway restart
-
-# 4. Đăng nhập bằng QR
-openclaw channels login --channel zaloclaw
+npm run zalo:login
 ```
 
----
+Check stored login/session status:
 
-> **Lỗi `channels login`?** Nếu gặp `Unsupported channel "zaloclaw"`, chạy `openclaw setup` thay thế — cùng luồng QR, tương thích mọi phiên bản. Nguyên nhân: plugin chưa được đăng ký qua `openclaw plugins install`.
+```bash
+npm run zalo:status
+```
 
-> **Session hết hạn?** Chạy lại `openclaw channels login --channel zaloclaw` và quét QR mới.
+Stored credentials should live under the runtime data directory. Treat them as secrets.
 
----
+## Run Gateway
 
-## Tính năng
+```bash
+npm run gateway
+```
 
-| Danh mục | Highlights |
-|----------|------------|
-| 💬 **Nhắn tin** | Text, rich text, ảnh, file, video, voice, sticker, link preview |
-| 👥 **Nhóm** | Tạo/quản lý nhóm, admin, bình chọn, nhắc nhở, link mời |
-| 🤝 **Bạn bè** | Tìm, kết bạn, chặn, biệt danh, trạng thái online |
-| 🤖 **AI-native** | Mention gating, image buffering, quote context, typing indicator |
-| 🔐 **Kiểm soát** | DM policy, group policy, allowlist/blocklist theo user/nhóm |
-| ⚙️ **Cài đặt** | Auto-reply, quick messages, auto-unsend, read receipt |
+Expected startup log:
 
-### Chi tiết nổi bật
+```text
+[zalo-api-gateway] listening on http://127.0.0.1:8787
+```
 
-- **Mention gating** — Bot chỉ phản hồi khi được `@mention` trong nhóm; có thể tắt per-group
-- **Image buffering** — Nhớ ảnh từ tin nhắn không mention, dùng làm context khi được @tag sau
-- **Rich text** — Markdown tự chuyển sang bold/italic/gạch chân/màu sắc Zalo
-- **Urgency levels** — `1` = quan trọng 🔶, `2` = khẩn cấp 🔴
-- **Quote reply** — AI nhận đầy đủ context tin nhắn được trích dẫn + người gửi
+If you see repeated lines like this:
 
----
+```text
+[zalo-api-gateway] webhook delivery failed url=http://127.0.0.1:8790/webhooks/zalo error=Webhook dispatch timed out
+```
 
-## Cấu hình
+it means `ZALO_GATEWAY_WEBHOOKS` points to a receiver that is not responding. Either start the receiver, fix the URL/port, or temporarily clear `ZALO_GATEWAY_WEBHOOKS` while testing the gateway alone.
 
-File: `~/.openclaw/openclaw.json` → key `channels.zaloclaw`
+## API
 
-```jsonc
+Public status endpoints:
+
+```http
+GET /health
+GET /version
+```
+
+Authenticated endpoints require:
+
+```http
+Authorization: Bearer <ZALO_GATEWAY_TOKEN>
+```
+
+Available endpoints now:
+
+```http
+POST /messages/send
+GET  /friends
+GET  /groups
+GET  /groups/:groupId/members
+POST /actions/:action
+```
+
+Supported action names:
+
+```text
+send
+reply-message
+add-reaction
+get-thread-info
+get-group-members
+list-friends
+list-groups
+mark-read
+```
+
+Some actions may return `502` with `not implemented` until the adapter supports that Zalo operation.
+
+## Curl Examples
+
+Health:
+
+```bash
+curl http://127.0.0.1:8787/health
+```
+
+Version:
+
+```bash
+curl http://127.0.0.1:8787/version
+```
+
+Send a direct message:
+
+```bash
+curl -X POST http://127.0.0.1:8787/messages/send \
+  -H 'Authorization: Bearer change-me-gateway-token' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "threadId": "[REDACTED_USER_ID]",
+    "isGroup": false,
+    "text": "Xin chao tu Zalo API Gateway"
+  }'
+```
+
+Send a group message:
+
+```bash
+curl -X POST http://127.0.0.1:8787/messages/send \
+  -H 'Authorization: Bearer change-me-gateway-token' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "threadId": "[REDACTED_GROUP_ID]",
+    "isGroup": true,
+    "text": "Gateway test"
+  }'
+```
+
+List friends:
+
+```bash
+curl 'http://127.0.0.1:8787/friends?count=20&page=1' \
+  -H 'Authorization: Bearer change-me-gateway-token'
+```
+
+List groups:
+
+```bash
+curl http://127.0.0.1:8787/groups \
+  -H 'Authorization: Bearer change-me-gateway-token'
+```
+
+Use generic action endpoint:
+
+```bash
+curl -X POST http://127.0.0.1:8787/actions/get-thread-info \
+  -H 'Authorization: Bearer change-me-gateway-token' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "threadId": "[REDACTED_GROUP_ID]",
+    "isGroup": true
+  }'
+```
+
+## Inbound Webhooks
+
+When the gateway receives a Zalo message, it dispatches an event to every URL in `ZALO_GATEWAY_WEBHOOKS`.
+
+Payload shape:
+
+```json
 {
-  "channels": {
-    "zaloclaw": {
-      "accounts": {
-        "default": {
-          "enabled": true,
-
-          // Chính sách DM: open | pairing | allowlist | disabled
-          "dmPolicy": "open",
-          "allowFrom": ["*"],
-          "denyFrom": [],
-
-          // Chính sách nhóm: open | allowlist | disabled
-          "groupPolicy": "open",
-
-          // Override theo từng nhóm (dùng group ID hoặc "*" cho mặc định)
-          "groups": {
-            "*":          { "requireMention": true },
-            "<group_id>": { "allow": true, "requireMention": false }
-          }
-        }
-      }
-    }
-  }
+  "type": "message.created",
+  "platform": "zalo",
+  "threadId": "[REDACTED_THREAD_ID]",
+  "messageId": "[REDACTED_MESSAGE_ID]",
+  "senderId": "[REDACTED_SENDER_ID]",
+  "senderName": "Sender Name",
+  "chatType": "dm",
+  "text": "hello",
+  "timestamp": 1710000000000
 }
 ```
 
-### DM Policy
+Webhook auth header when `ZALO_GATEWAY_WEBHOOK_TOKEN` is set:
 
-| Policy | Hành vi |
-|--------|---------|
-| `open` | Chấp nhận tất cả DM |
-| `pairing` | Yêu cầu trao đổi mã với người dùng lạ |
-| `allowlist` | Chỉ user trong `allowFrom` |
-| `disabled` | Chặn tất cả DM |
-
----
-
-## 147 Actions
-
-> Plugin expose một tool `zaloclaw` duy nhất với 147 actions. Tên người dùng và tên nhóm tự động resolve thành Zalo numeric ID.
-> Xem đầy đủ tại [docs/agent-help.md](docs/agent-help.md).
-
-<details>
-<summary><b>💬 Nhắn tin — 16 actions</b></summary>
-<br>
-
-| Action | Mô tả |
-|--------|-------|
-| `send` | Gửi text (`urgency` 0/1/2, `messageTtl`) |
-| `send-styled` | Rich text: **bold**, *italic*, gạch chân, gạch ngang, màu |
-| `send-image` | Ảnh qua URL hoặc local path |
-| `send-file` | File bất kỳ (PDF, doc, zip…) qua URL hoặc local path |
-| `send-video` | Video |
-| `send-voice` | Tin nhắn thoại |
-| `send-link` | URL kèm preview tự động |
-| `send-sticker` | Sticker theo ID hoặc keyword |
-| `send-card` | Danh thiếp liên hệ |
-| `send-bank-card` | Thông tin thẻ ngân hàng |
-| `send-typing` | Chỉ báo đang nhập |
-| `send-to-stranger` | Nhắn người chưa kết bạn |
-| `forward-message` | Chuyển tiếp đến nhiều hội thoại (hỗ trợ TTL) |
-| `delete-message` | Xóa tin nhắn |
-| `undo-message` | Thu hồi tin nhắn đã gửi |
-| `add-reaction` | React: heart · like · haha · wow · cry · angry |
-
-</details>
-
-<details>
-<summary><b>🤝 Bạn bè — 16 actions</b></summary>
-<br>
-
-| Action | Mô tả |
-|--------|-------|
-| `friends` | Danh sách bạn bè (filter/search) |
-| `find-user` | Tìm theo số điện thoại |
-| `find-user-by-username` | Tìm theo username Zalo |
-| `send-friend-request` | Gửi lời mời kết bạn |
-| `accept-friend-request` | Chấp nhận lời mời |
-| `reject-friend-request` | Từ chối lời mời |
-| `get-friend-requests` | Lời mời đang chờ |
-| `get-sent-requests` | Lời mời đã gửi |
-| `undo-friend-request` | Hủy lời mời đã gửi |
-| `unfriend` | Xóa bạn |
-| `check-friend-status` | Trạng thái kết bạn / lời mời |
-| `set-friend-nickname` | Đặt biệt danh |
-| `remove-friend-nickname` | Xóa biệt danh |
-| `get-online-friends` | Bạn bè đang online |
-| `get-close-friends` | Bạn thân |
-| `get-friend-recommendations` | Gợi ý kết bạn |
-
-</details>
-
-<details>
-<summary><b>👥 Nhóm — 22 actions</b></summary>
-<br>
-
-| Action | Mô tả |
-|--------|-------|
-| `groups` | Danh sách nhóm (có search) |
-| `get-group-info` | Chi tiết nhóm |
-| `create-group` | Tạo nhóm mới |
-| `add-to-group` | Thêm thành viên |
-| `remove-from-group` | Xóa thành viên |
-| `leave-group` | Rời nhóm |
-| `rename-group` | Đổi tên nhóm |
-| `add-group-admin` / `remove-group-admin` | Quản lý admin |
-| `change-group-owner` | Chuyển quyền trưởng nhóm |
-| `disperse-group` | Giải tán nhóm |
-| `update-group-settings` | Cài đặt (lịch sử, duyệt tham gia, khóa tên…) |
-| `enable/disable/get-group-link` | Quản lý link mời nhóm |
-| `get/review-pending-members` | Duyệt yêu cầu tham gia |
-| `block/unblock-group-member` | Chặn thành viên |
-| `get-group-members-info` | Chi tiết thành viên |
-| `change-group-avatar` | Đổi avatar nhóm |
-| `upgrade-group-to-community` | Nâng cấp thành cộng đồng |
-| `get-group-chat-history` | Lịch sử tin nhắn |
-
-</details>
-
-<details>
-<summary><b>📊 Bình chọn — 6 actions</b></summary>
-<br>
-
-`create-poll` · `vote-poll` · `lock-poll` · `get-poll-detail` · `add-poll-options` · `share-poll`
-
-Hỗ trợ: đa lựa chọn, thêm tùy chọn mới, ẩn danh, thời hạn tùy chỉnh.
-
-</details>
-
-<details>
-<summary><b>🔔 Nhắc nhở — 6 actions</b></summary>
-<br>
-
-`create-reminder` · `edit-reminder` · `remove-reminder` · `list-reminders` · `get-reminder` · `get-reminder-responses`
-
-</details>
-
-<details>
-<summary><b>💼 Hội thoại, Tự động trả lời, Hồ sơ, Sản phẩm — 51 actions</b></summary>
-<br>
-
-**Quản lý hội thoại (16):** Mute/unmute, pin/unpin, ẩn/hiện, tự xóa (1/7/14 ngày), lưu trữ, đánh dấu chưa đọc.
-
-**Tin nhắn nhanh & Auto-reply (8):** CRUD quick messages + auto-reply rules (phạm vi: tất cả / người lạ / bạn bè cụ thể).
-
-**Hồ sơ & Tài khoản (14):** `me`, `update-profile`, `change-avatar`, `get-qr`, `last-online`, `get-biz-account`, quản lý lịch sử avatar, v.v.
-
-**Danh mục & Sản phẩm (8):** CRUD catalog và product — dành cho tài khoản shop/doanh nghiệp.
-
-**Tiện ích & Cài đặt (5):** `get/update-settings`, `update-active-status`, `parse-link`, `search-stickers`, tra cứu hàng loạt SĐT.
-
-</details>
-
-<details>
-<summary><b>🔧 Quản lý Bot — OpenClaw layer — 13 actions</b></summary>
-<br>
-
-Block/unblock user toàn cục và theo nhóm, allowlist, require-mention config per-group, trust management.
-
-</details>
-
----
-
-## Kiến trúc
-
-```
-zaloclaw/
-├── index.ts                    ← Entry point & tool registration
-├── src/
-│   ├── channel/
-│   │   ├── channel.ts          ← Plugin lifecycle (start / stop / dock)
-│   │   ├── monitor.ts          ← Inbound router & access control
-│   │   ├── send.ts             ← Outbound dispatcher & markdown converter
-│   │   ├── onboarding.ts       ← QR login flow
-│   │   └── image-downloader.ts ← Media handler
-│   ├── client/
-│   │   ├── zalo-client.ts      ← zca-js wrapper (login, getApi, reconnect)
-│   │   ├── credentials.ts      ← Credential persistence
-│   │   └── accounts.ts         ← Multi-account resolver
-│   ├── config/                 ← Schema validation & runtime config
-│   ├── tools/tool.ts           ← 147 action handlers
-│   └── features/               ← sticker · quote-reply · reaction-ack · …
-└── docs/
-    ├── agent-help.md           ← Full 147-action reference
-    └── agent-install.md        ← Install guide
+```http
+Authorization: Bearer <ZALO_GATEWAY_WEBHOOK_TOKEN>
 ```
 
-**Message flow:**
+The current dispatcher times out after 10 seconds. A timeout usually means the receiver is missing, blocked, slow, or listening on a different port.
 
-```
-Zalo WS → zca-js → monitor.ts
-                       │
-                       ├─ Access control (block/allow/policy)
-                       ├─ Mention gate  (skip → buffer image)
-                       ├─ Media download
-                       ├─ Context build (sender · quote · media)
-                       └─ OpenClaw agent → send.ts → Zalo
-```
+## Allowlist Requirement
 
----
+The gateway is already able to receive messages and send replies. That is powerful and dangerous if connected to an agent without restrictions.
 
-## Phát triển
+Before enabling auto-reply, enforce allowlists for both inbound and outbound paths:
 
 ```bash
-npm run typecheck          # TypeScript check
-npm run test               # Vitest test suite
-npm run build              # esbuild → dist/index.js
-
-# Dev — link trực tiếp, không cần build lại
-openclaw plugins install --link .
-openclaw gateway restart
+# planned gateway-side config
+ZALO_GATEWAY_ALLOWED_SENDERS=[REDACTED_USER_ID],[REDACTED_USER_ID]
+ZALO_GATEWAY_ALLOWED_THREADS=[REDACTED_THREAD_ID],[REDACTED_GROUP_ID]
+ZALO_GATEWAY_DENY_SENDERS=
+ZALO_GATEWAY_DENY_THREADS=
 ```
 
-**Thêm action mới:** Handler trong `src/tools/tool.ts` → wire vào `monitor.ts` / `send.ts` nếu cần → `typecheck` → restart.
+Policy to implement:
 
----
+- Direct messages: allow only when `senderId` is in `ZALO_GATEWAY_ALLOWED_SENDERS` or `threadId` is in `ZALO_GATEWAY_ALLOWED_THREADS`.
+- Groups: allow only when the group/thread ID is in `ZALO_GATEWAY_ALLOWED_THREADS`.
+- Denylist wins over allowlist.
+- Drop unauthorized inbound events before webhook dispatch.
+- Reject unauthorized outbound `POST /messages/send` with `403`.
+- Log allowed/blocked decisions without leaking message content by default.
 
-## Hạn chế đã biết
+Until this is implemented, keep `ZALO_GATEWAY_WEBHOOKS` empty when testing with accounts/groups that should not trigger an agent.
 
-| Mức độ | Vấn đề | Chi tiết |
-|:------:|--------|---------|
-| 🔴 | **Unofficial API** | Reverse-engineered client — có thể break khi Zalo cập nhật protocol |
-| 🟡 | **Session** | Cookie có thể hết hạn — cần quét lại QR để khôi phục |
-| 🟡 | **Rate limit** | Gửi quá nhiều có thể bị Zalo throttle hoặc block tài khoản |
-| 🟡 | **Đa tài khoản** | Hỗ trợ về kiến trúc nhưng chưa kiểm thử đầy đủ |
-| 🟢 | **Streaming** | Tắt theo thiết kế (`blockStreaming: true`) |
-| 🟢 | **Message TTL** | Server Zalo có thể không áp dụng — dùng `set-auto-delete-chat` thay thế |
+## Logging Plan
 
----
+Current logs are plain text. The next logging cleanup should standardize event names and include correlation fields:
 
-## Ủng hộ đồng bào 🇻🇳
+```text
+[zalo-api-gateway] event=gateway.listen host=127.0.0.1 port=8787
+[zalo-api-gateway] event=zalo.message.received chatType=dm threadId=[REDACTED] senderId=[REDACTED]
+[zalo-api-gateway] event=webhook.delivery.failed url=http://127.0.0.1:8790/webhooks/zalo error="Webhook dispatch timed out"
+[zalo-api-gateway] event=policy.inbound.blocked reason=sender_not_allowed threadId=[REDACTED] senderId=[REDACTED]
+[zalo-api-gateway] event=message.send.success threadId=[REDACTED] messageId=[REDACTED]
+```
 
-Nếu ZaloClaw có ích với bạn, hãy cân nhắc đóng góp cho **Quỹ Cứu trợ Trung ương — Ủy ban MTTQ Việt Nam** để hỗ trợ đồng bào bị thiên tai, lũ lụt.
+Recommended fields:
 
-| Ngân hàng | Số tài khoản | Tên tài khoản | Chi nhánh | QR |
-|:---------:|:------------:|---------------|:---------:|:--:|
-| **Vietcombank** | `666.666.1010` | Ủy ban TW MTTQ Việt Nam | Hà Nội | [![QR](https://img.vietqr.io/image/970436-6666661010-compact2.png?accountName=UBTW+MTTQ+Viet+Nam&addInfo=Ung+ho+dong+bao)](https://img.vietqr.io/image/970436-6666661010-compact2.png?accountName=UBTW+MTTQ+Viet+Nam&addInfo=Ung+ho+dong+bao) |
-| **VietinBank** | `55102025` | Ban Vận động Cứu trợ TW | — | [![QR](https://img.vietqr.io/image/970415-55102025-compact2.png?accountName=Ban+Van+dong+Cuu+tro+TW&addInfo=Ung+ho+dong+bao)](https://img.vietqr.io/image/970415-55102025-compact2.png?accountName=Ban+Van+dong+Cuu+tro+TW&addInfo=Ung+ho+dong+bao) |
-| **BIDV** | `1200979797` | Ủy ban TW MTTQ Việt Nam | Sở Giao dịch 1 | [![QR](https://img.vietqr.io/image/970418-1200979797-compact2.png?accountName=UBTW+MTTQ+Viet+Nam&addInfo=Ung+ho+dong+bao)](https://img.vietqr.io/image/970418-1200979797-compact2.png?accountName=UBTW+MTTQ+Viet+Nam&addInfo=Ung+ho+dong+bao) |
+- `event`
+- `requestId` or `messageId`
+- `threadId`
+- `senderId`
+- `chatType`
+- `targetUrl` for webhooks
+- `durationMs`
+- `status` or `error`
 
-> ⚠️ MTTQ đã cảnh báo về nhiều tài khoản giả mạo — chỉ chuyển vào 3 STK trên. Nguồn chính thức: [mattran.org.vn](https://mattran.org.vn)
+Do not log full message text, cookies, tokens, QR payloads, or raw Zalo credentials unless explicitly debugging in a private environment.
 
----
+## Development Verification
 
-<div align="center">
+Canonical verification:
 
-## Giấy phép
+```bash
+./init.sh
+```
 
-[MIT](LICENSE) © [monas-team](https://github.com/monas-team)
+Equivalent commands:
 
+```bash
+npm run typecheck
+npm test
+```
 
-</div>
+Build commands:
 
----
+```bash
+npm run gateway:build
+npm run build
+```
 
-<div align="center">
-<sub>Dự án này không có liên kết với Zalo hay VNG Corporation. "Zalo" là thương hiệu thuộc sở hữu của VNG Corporation.</sub>
-</div>
+## Project Layout
+
+```text
+src/gateway/              HTTP gateway, routes, webhook dispatcher, zca-js adapter
+src/zalo/                 Zalo-owned reusable normalization logic
+src/client/               Existing zca-js credential/client helpers
+src/channel/              Send/thread helpers still being migrated
+src/bridge/hermes/        Optional Hermes bridge
+legacy/openclaw/          Old OpenClaw plugin code, reference only
+docs/GATEWAY_PLAN.md      Implementation plan
+AGENTS.md                 Harness instructions
+feature_list.json         Phase tracker
+progress.md               Current progress and verification notes
+session-handoff.md        Restart/handoff state
+```
+
+## Relationship To ZaloClaw
+
+This project started from `monas-team/zaloclaw` because it already contains useful Zalo personal-account capabilities and tests. The maintained direction here is different:
+
+- Not an OpenClaw plugin runtime.
+- Not tied to OpenClaw channel/tool contracts.
+- HTTP/webhook gateway first.
+- Hermes integration later as a client or bridge, not a Hermes core patch.
+
+## License
+
+MIT. Preserve upstream attribution from `monas-team/zaloclaw` when reusing or porting code.
