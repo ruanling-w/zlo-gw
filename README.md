@@ -172,6 +172,7 @@ send-image
 send-file
 send-link
 send-video
+send-voice
 delete-message
 undo-message
 forward-message
@@ -187,7 +188,7 @@ mark-unread
 pin-conversation
 ```
 
-Some newly registered actions currently return `502` with `not implemented` until the `zca-js` adapter call is wired.
+`send-voice` is wired through `zca-js`; other newly registered media/management actions may still return `502` with `not implemented` until the adapter call is wired.
 
 ## Curl Examples
 

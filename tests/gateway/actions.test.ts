@@ -48,6 +48,7 @@ describe("action registry", () => {
   it("lists supported actions", () => {
     expect(SUPPORTED_ACTIONS).toContain("send");
     expect(SUPPORTED_ACTIONS).toContain("send-image");
+    expect(SUPPORTED_ACTIONS).toContain("send-voice");
     expect(SUPPORTED_ACTIONS).toContain("forward-message");
     expect(SUPPORTED_ACTIONS).toContain("find-user");
     expect(SUPPORTED_ACTIONS).toContain("get-group-info");
@@ -126,6 +127,20 @@ describe("action registry", () => {
     const allowed = await postAction(baseUrl, "send", { threadId: "allowed-user", text: "hello", isGroup: false }, "secret");
     expect(allowed.status).toBe(200);
     expect(client.sentMessages).toEqual([{ threadId: "allowed-user", text: "hello", isGroup: false }]);
+  });
+
+
+  it("sends voice through the client boundary", async () => {
+    const { baseUrl, client } = await startServer({ token: "secret" });
+
+    const response = await postAction(baseUrl, "send-voice", { threadId: "thread-1", voiceUrl: "https://example.test/voice.mp3", isGroup: false }, "secret");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      data: { ok: true, messageId: "voice-1", threadId: "thread-1" },
+    });
+    expect(client.sentVoices).toEqual([{ threadId: "thread-1", voiceUrl: "https://example.test/voice.mp3", isGroup: false, ttl: undefined }]);
   });
 
   it("runs utility actions", async () => {

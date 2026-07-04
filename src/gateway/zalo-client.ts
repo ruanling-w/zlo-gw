@@ -29,6 +29,21 @@ export type SendMessageResult = {
   error?: string;
 };
 
+export type SendVoiceInput = {
+  threadId: string;
+  voiceUrl: string;
+  isGroup?: boolean;
+  ttl?: number;
+};
+
+export type NormalizedAttachment = {
+  type: "voice" | "image" | "video" | "file" | "link" | "sticker" | "unknown";
+  url?: string;
+  title?: string;
+  description?: string;
+  raw?: unknown;
+};
+
 export type ThreadInfo = {
   threadId: string;
   isGroup: boolean;
@@ -72,6 +87,7 @@ export type NormalizedZaloEvent = {
   senderName?: string;
   chatType: "dm" | "group";
   text: string;
+  attachments?: NormalizedAttachment[];
   timestamp: number;
   raw?: unknown;
 };
@@ -79,6 +95,7 @@ export type NormalizedZaloEvent = {
 export interface GatewayZaloClient {
   status(): Promise<ZaloGatewayStatus>;
   sendText(input: SendTextInput): Promise<SendMessageResult>;
+  sendVoice(input: SendVoiceInput): Promise<SendMessageResult>;
   replyMessage(input: SendTextInput & { messageId?: string }): Promise<SendMessageResult>;
   addReaction(input: { threadId: string; messageId: string; reaction: string; isGroup?: boolean }): Promise<ActionResult>;
   getThreadInfo(input: { threadId: string; isGroup?: boolean }): Promise<ActionResult<ThreadInfo>>;
@@ -89,11 +106,29 @@ export interface GatewayZaloClient {
   onMessage(handler: (event: NormalizedZaloEvent) => void): Disposable;
 }
 
+function normalizeAttachment(content: unknown): NormalizedAttachment | undefined {
+  if (!content || typeof content !== "object" || Array.isArray(content)) return undefined;
+  const record = content as Record<string, unknown>;
+  const rawType = String(record.type ?? record.msgType ?? "").toLowerCase();
+  const href = typeof record.href === "string" ? record.href : typeof record.url === "string" ? record.url : undefined;
+  const title = typeof record.title === "string" ? record.title : undefined;
+  const description = typeof record.description === "string" ? record.description : undefined;
+  const type = rawType.includes("voice") || rawType.includes("audio") ? "voice"
+    : rawType.includes("image") || rawType.includes("photo") ? "image"
+    : rawType.includes("video") ? "video"
+    : rawType.includes("link") ? "link"
+    : rawType.includes("file") ? "file"
+    : rawType.includes("sticker") ? "sticker"
+    : href ? "unknown" : undefined;
+  return type ? { type, url: href, title, description, raw: content } : undefined;
+}
+
 export function normalizeGatewayZaloEvent(message: Message): NormalizedZaloEvent | undefined {
   if (message.isSelf) return undefined;
   const content = message.data.content;
-  const text = typeof content === "string" ? content : JSON.stringify(content);
-  if (!text.trim()) return undefined;
+  const attachment = normalizeAttachment(content);
+  const text = typeof content === "string" ? content : attachment?.title ?? attachment?.description ?? "";
+  if (!text.trim() && !attachment) return undefined;
   const isGroup = message.type === ThreadType.Group;
   return {
     type: "message.created",
@@ -104,6 +139,7 @@ export function normalizeGatewayZaloEvent(message: Message): NormalizedZaloEvent
     senderName: message.data.dName,
     chatType: isGroup ? "group" : "dm",
     text,
+    attachments: attachment ? [attachment] : undefined,
     timestamp: message.data.ts ? Number.parseInt(message.data.ts, 10) : Date.now(),
     raw: message,
   };
@@ -136,6 +172,12 @@ export class ZcaGatewayZaloClient implements GatewayZaloClient {
       threadId: input.threadId,
       error: result.error,
     };
+  }
+
+  async sendVoice(input: SendVoiceInput): Promise<SendMessageResult> {
+    const api = await getApi();
+    const result = await api.sendVoice({ voiceUrl: input.voiceUrl, ttl: input.ttl }, input.threadId, input.isGroup ? ThreadType.Group : ThreadType.User);
+    return { ok: true, messageId: result.msgId, threadId: input.threadId };
   }
 
   async replyMessage(input: SendTextInput & { messageId?: string }): Promise<SendMessageResult> {

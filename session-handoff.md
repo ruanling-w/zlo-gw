@@ -33,6 +33,7 @@
 - [x] Extended gateway-side outbound allowlist policy to send-like actions: `send`, `reply-message`, `add-reaction`, and `mark-read`.
 - [x] Added authenticated runtime policy API (`GET /policy`, `PUT /policy`) so external agents can manage allowed users/groups without editing env.
 - [x] Added policy convenience endpoints, directory query filters, and registered requested next action names with stable placeholder responses where adapter wiring is still pending.
+- [x] Added inbound voice/media attachment normalization and wired outbound `send-voice` through the gateway client boundary.
 - [x] Standardized policy/webhook failure logs with event-style names and redacted sender/thread IDs.
 
 ## Verification Evidence
@@ -45,7 +46,7 @@
 | Login CLI build | `npm run zalo:login:build` | PASS | Login CLI bundles to `dist/zalo-login.js`. |
 | Status CLI build | `npm run zalo:status:build` | PASS | Status CLI bundles to `dist/zalo-status.js`. |
 | Harness validation | `node /home/ruanling/.hermes/skills/autonomous-ai-agents/harness-creator/scripts/validate-harness.mjs --target /home/ruanling/code/zalo-api-gateway` | PASS | Score 87/100 after latest plan update; bottleneck is missing codebase_intelligence docs/profile. |
-| Allowlist cleanup | `npm run typecheck && npm run test` | PASS | Typecheck passed; 20 test files, 151 tests passed after policy convenience/search/action registration. |
+| Allowlist cleanup | `npm run typecheck && npm run test` | PASS | Typecheck passed; 20 test files, 153 tests passed after voice support. |
 
 ## Files Changed
 

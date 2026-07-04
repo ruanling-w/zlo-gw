@@ -8,6 +8,7 @@ import type {
   NormalizedZaloEvent,
   SendMessageResult,
   SendTextInput,
+  SendVoiceInput,
   ThreadInfo,
   ZaloGatewayStatus,
 } from "./zalo-client.js";
@@ -15,6 +16,7 @@ import type {
 export class MockGatewayZaloClient implements GatewayZaloClient {
   private handlers = new Set<(event: NormalizedZaloEvent) => void>();
   public sentMessages: SendTextInput[] = [];
+  public sentVoices: SendVoiceInput[] = [];
   public replies: Array<SendTextInput & { messageId?: string }> = [];
   public reactions: Array<{ threadId: string; messageId: string; reaction: string; isGroup?: boolean }> = [];
   public markReadCalls: Array<{ threadId: string; isGroup?: boolean }> = [];
@@ -45,6 +47,16 @@ export class MockGatewayZaloClient implements GatewayZaloClient {
     return {
       ok: true,
       messageId: `mock-${this.sentMessages.length}`,
+      threadId: input.threadId,
+      ...this.nextSendResult,
+    };
+  }
+
+  async sendVoice(input: SendVoiceInput): Promise<SendMessageResult> {
+    this.sentVoices.push(input);
+    return {
+      ok: true,
+      messageId: `voice-${this.sentVoices.length}`,
       threadId: input.threadId,
       ...this.nextSendResult,
     };

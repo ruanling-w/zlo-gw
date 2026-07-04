@@ -63,15 +63,30 @@ describe("GatewayZaloClient boundary", () => {
       type: ThreadType.Group,
       threadId: "group-thread",
       isSelf: false,
-      data: { msgId: "m2", cliMsgId: "c2", content: { title: "photo" }, dName: "Group User", ts: "456", uidFrom: "user-2" },
+      data: { msgId: "m2", cliMsgId: "c2", content: { title: "photo", href: "https://example.test/photo.jpg", type: "photo" }, dName: "Group User", ts: "456", uidFrom: "user-2" },
     } as any)).toMatchObject({
       threadId: "group-thread",
       messageId: "m2",
       senderId: "user-2",
       senderName: "Group User",
       chatType: "group",
-      text: JSON.stringify({ title: "photo" }),
+      text: "photo",
+      attachments: [{ type: "image", url: "https://example.test/photo.jpg", title: "photo", description: undefined, raw: { title: "photo", href: "https://example.test/photo.jpg", type: "photo" } }],
       timestamp: 456,
+    });
+  });
+
+  it("normalizes inbound voice attachments", () => {
+    expect(normalizeGatewayZaloEvent({
+      type: ThreadType.User,
+      threadId: "user-thread",
+      isSelf: false,
+      data: { msgId: "m3", cliMsgId: "c3", content: { type: "voice", href: "https://example.test/voice.mp3", title: "voice" }, dName: "User One", ts: "789", uidFrom: "0" },
+    } as any)).toMatchObject({
+      threadId: "user-thread",
+      chatType: "dm",
+      text: "voice",
+      attachments: [{ type: "voice", url: "https://example.test/voice.mp3", title: "voice" }],
     });
   });
 
@@ -97,7 +112,7 @@ describe("GatewayZaloClient boundary", () => {
       hasStoredCredentials: true,
     });
     const gateway = createGatewayServer({
-      config: { host: "127.0.0.1", port: 0, webhooks: [] },
+      config: { host: "127.0.0.1", port: 0, webhooks: [], allowedSenders: ["*"], allowedThreads: ["*"], deniedSenders: [], deniedThreads: [] },
       runtime: { name: "zalo-api-gateway", version: "0.1.0-test", node: "v-test" },
       zaloClient: client,
     });

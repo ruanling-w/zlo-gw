@@ -16,6 +16,7 @@ export const SUPPORTED_ACTIONS = [
   "send-file",
   "send-link",
   "send-video",
+  "send-voice",
   "delete-message",
   "undo-message",
   "forward-message",
@@ -176,6 +177,24 @@ async function markRead(payload: unknown, context: ActionContext): Promise<JsonR
   return result.ok ? json(200, { ok: true, data: result.data ?? {} }) : error(502, result.error ?? "Action failed");
 }
 
+function sendVoiceInput(payload: unknown): { ok: true; value: { threadId: string; voiceUrl: string; isGroup?: boolean; ttl?: number } } | { ok: false; response: JsonResponse } {
+  if (!isRecord(payload)) return { ok: false, response: error(400, "Request body must be a JSON object") };
+  const threadId = requiredString(payload, "threadId");
+  const voiceUrl = requiredString(payload, "voiceUrl");
+  if (!threadId) return { ok: false, response: error(400, "threadId is required") };
+  if (!voiceUrl) return { ok: false, response: error(400, "voiceUrl is required") };
+  return { ok: true, value: { threadId, voiceUrl, isGroup: optionalBoolean(payload, "isGroup"), ttl: typeof payload.ttl === "number" ? payload.ttl : undefined } };
+}
+
+async function sendVoice(payload: unknown, context: ActionContext): Promise<JsonResponse> {
+  const parsed = sendVoiceInput(payload);
+  if (!parsed.ok) return parsed.response;
+  const blocked = checkOutbound(parsed.value, context.policy);
+  if (blocked) return blocked;
+  const result = await context.client.sendVoice(parsed.value);
+  return result.ok ? json(200, { ok: true, data: result }) : error(502, result.error ?? "Action failed");
+}
+
 async function getGroupInfo(payload: unknown, context: ActionContext): Promise<JsonResponse> {
   return getThreadInfo(payload, context);
 }
@@ -202,6 +221,7 @@ export const actionRegistry: Record<GatewayActionName, ActionHandler> = {
   "send-file": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "send-file" }, context),
   "send-link": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "send-link" }, context),
   "send-video": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "send-video" }, context),
+  "send-voice": sendVoice,
   "delete-message": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "delete-message" }, context),
   "undo-message": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "undo-message" }, context),
   "forward-message": (payload, context) => unsupportedAction({ ...(isRecord(payload) ? payload : {}), action: "forward-message" }, context),
