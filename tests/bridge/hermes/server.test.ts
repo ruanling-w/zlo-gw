@@ -28,9 +28,20 @@ class MockHermes implements HermesRunner {
 class MockZaloGateway implements ZaloGatewayClient {
   calls: ZaloGatewaySendInput[] = [];
   result: ZaloGatewaySendResult = { ok: true, messageId: "reply-msg" };
+  loginStatus = { status: "qr_generated", sessionId: "session-1" };
+  qrBytes = new Uint8Array([137, 80, 78, 71]);
   async sendMessage(input: ZaloGatewaySendInput): Promise<ZaloGatewaySendResult> {
     this.calls.push(input);
     return this.result;
+  }
+  async startQrLogin() {
+    return { ok: true, data: this.loginStatus };
+  }
+  async getQrLoginStatus() {
+    return { ok: true, data: this.loginStatus };
+  }
+  async getQrLoginImage() {
+    return { ok: true, contentType: "image/png", bytes: this.qrBytes };
   }
 }
 
@@ -71,6 +82,24 @@ describe("Hermes bridge server", () => {
     const response = await fetch(`${baseUrl}/webhooks/zalo`, { method: "POST", body: "{}" });
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ ok: false, error: "Unauthorized" });
+  });
+
+
+  it("proxies Zalo QR connection endpoints", async () => {
+    const { baseUrl } = await startBridge();
+    const auth = { authorization: "Bearer " + "bridge-token" };
+
+    const start = await fetch(`${baseUrl}/connect/zalo/start`, { method: "POST", headers: auth });
+    const status = await fetch(`${baseUrl}/connect/zalo/status`, { headers: auth });
+    const qr = await fetch(`${baseUrl}/connect/zalo/qr.png`, { headers: auth });
+
+    expect(start.status).toBe(202);
+    expect(await start.json()).toEqual({ ok: true, data: { status: "qr_generated", sessionId: "session-1" } });
+    expect(status.status).toBe(200);
+    expect(await status.json()).toEqual({ ok: true, data: { status: "qr_generated", sessionId: "session-1" } });
+    expect(qr.status).toBe(200);
+    expect(qr.headers.get("content-type")).toBe("image/png");
+    expect(new Uint8Array(await qr.arrayBuffer())).toEqual(new Uint8Array([137, 80, 78, 71]));
   });
 
   it("processes a valid Zalo webhook and sends reply", async () => {

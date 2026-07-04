@@ -52,8 +52,21 @@ export type ZaloGatewaySendResult = {
   error?: string;
 };
 
+export type ZaloGatewayLoginStatus = {
+  sessionId?: string;
+  status: string;
+  qrImageBase64?: string;
+  displayName?: string;
+  authenticatedHint?: boolean;
+  error?: string;
+  startedAt?: number;
+};
+
 export interface ZaloGatewayClient {
   sendMessage(input: ZaloGatewaySendInput): Promise<ZaloGatewaySendResult>;
+  startQrLogin(): Promise<{ ok: boolean; data?: ZaloGatewayLoginStatus; error?: string }>;
+  getQrLoginStatus(): Promise<{ ok: boolean; data?: ZaloGatewayLoginStatus; error?: string }>;
+  getQrLoginImage(): Promise<{ ok: boolean; contentType?: string; bytes?: Uint8Array; error?: string }>;
 }
 
 export type BridgeProcessResult = {

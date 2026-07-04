@@ -207,10 +207,7 @@ var HttpZaloGatewayClient = class {
     try {
       const response = await this.fetchImpl(new URL("/messages/send", this.baseUrl), {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...this.token ? { authorization: "Bearer " + this.token } : {}
-        },
+        headers: this.jsonHeaders(),
         body: JSON.stringify(input)
       });
       const body = await response.json().catch(() => ({}));
@@ -222,10 +219,58 @@ var HttpZaloGatewayClient = class {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
+  async startQrLogin() {
+    return this.gatewayJson("/login/qr/start", "POST");
+  }
+  async getQrLoginStatus() {
+    return this.gatewayJson("/login/qr/status", "GET");
+  }
+  async getQrLoginImage() {
+    try {
+      const response = await this.fetchImpl(new URL("/login/qr/image", this.baseUrl), {
+        method: "GET",
+        headers: this.authHeaders()
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        return { ok: false, error: body.error ?? `Zalo Gateway returned HTTP ${response.status}` };
+      }
+      return { ok: true, contentType: response.headers.get("content-type") ?? "image/png", bytes: new Uint8Array(await response.arrayBuffer()) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+  async gatewayJson(path, method) {
+    try {
+      const response = await this.fetchImpl(new URL(path, this.baseUrl), {
+        method,
+        headers: this.jsonHeaders()
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body.ok === false) return { ok: false, error: body.error ?? `Zalo Gateway returned HTTP ${response.status}` };
+      return { ok: true, data: body.data };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+  jsonHeaders() {
+    return {
+      "content-type": "application/json",
+      ...this.authHeaders()
+    };
+  }
+  authHeaders() {
+    return this.token ? { authorization: "Bearer " + this.token } : {};
+  }
 };
 
 // src/bridge/hermes/server.ts
 function sendJson(response, result) {
+  if (Buffer.isBuffer(result.body)) {
+    response.writeHead(result.status, result.headers);
+    response.end(result.body);
+    return;
+  }
   const body = JSON.stringify(result.body);
   response.writeHead(result.status, {
     "content-type": "application/json; charset=utf-8",
@@ -257,6 +302,29 @@ function createHermesBridgeServer(options = {}) {
       if (path === "/health") {
         if (request.method !== "GET") return sendJson(response, { status: 405, body: { ok: false, error: "Method not allowed" } });
         return sendJson(response, { status: 200, body: { ok: true, service: "zalo-hermes-bridge" } });
+      }
+      if (path === "/connect/zalo/start") {
+        if (request.method !== "POST") return sendJson(response, { status: 405, body: { ok: false, error: "Method not allowed" } });
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        const result = await zaloGatewayClient.startQrLogin();
+        return sendJson(response, { status: result.ok ? 202 : 502, body: result });
+      }
+      if (path === "/connect/zalo/status") {
+        if (request.method !== "GET") return sendJson(response, { status: 405, body: { ok: false, error: "Method not allowed" } });
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        const result = await zaloGatewayClient.getQrLoginStatus();
+        return sendJson(response, { status: result.ok ? 200 : 502, body: result });
+      }
+      if (path === "/connect/zalo/qr.png") {
+        if (request.method !== "GET") return sendJson(response, { status: 405, body: { ok: false, error: "Method not allowed" } });
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        const result = await zaloGatewayClient.getQrLoginImage();
+        if (!result.ok || !result.bytes) return sendJson(response, { status: 404, body: { ok: false, error: result.error ?? "QR image is not available" } });
+        const body = Buffer.from(result.bytes);
+        return sendJson(response, { status: 200, headers: { "content-type": result.contentType ?? "image/png", "content-length": body.length.toString() }, body });
       }
       if (path === "/webhooks/zalo") {
         if (request.method !== "POST") return sendJson(response, { status: 405, body: { ok: false, error: "Method not allowed" } });

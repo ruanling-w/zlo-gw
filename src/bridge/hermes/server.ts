@@ -20,6 +20,11 @@ export type HermesBridgeServer = {
 };
 
 function sendJson(response: ServerResponse, result: JsonResponse): void {
+  if (Buffer.isBuffer(result.body)) {
+    response.writeHead(result.status, result.headers);
+    response.end(result.body);
+    return;
+  }
   const body = JSON.stringify(result.body);
   response.writeHead(result.status, {
     "content-type": "application/json; charset=utf-8",
@@ -55,6 +60,29 @@ export function createHermesBridgeServer(options: HermesBridgeServerOptions = {}
       if (path === "/health") {
         if (request.method !== "GET") return sendJson(response, { status: 405, body: { ok: false, error: "Method not allowed" } });
         return sendJson(response, { status: 200, body: { ok: true, service: "zalo-hermes-bridge" } });
+      }
+      if (path === "/connect/zalo/start") {
+        if (request.method !== "POST") return sendJson(response, { status: 405, body: { ok: false, error: "Method not allowed" } });
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        const result = await zaloGatewayClient.startQrLogin();
+        return sendJson(response, { status: result.ok ? 202 : 502, body: result });
+      }
+      if (path === "/connect/zalo/status") {
+        if (request.method !== "GET") return sendJson(response, { status: 405, body: { ok: false, error: "Method not allowed" } });
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        const result = await zaloGatewayClient.getQrLoginStatus();
+        return sendJson(response, { status: result.ok ? 200 : 502, body: result });
+      }
+      if (path === "/connect/zalo/qr.png") {
+        if (request.method !== "GET") return sendJson(response, { status: 405, body: { ok: false, error: "Method not allowed" } });
+        const auth = requireBearerToken(request, config.token);
+        if (!auth.ok) return sendJson(response, { status: auth.status, body: { ok: false, error: auth.error } });
+        const result = await zaloGatewayClient.getQrLoginImage();
+        if (!result.ok || !result.bytes) return sendJson(response, { status: 404, body: { ok: false, error: result.error ?? "QR image is not available" } });
+        const body = Buffer.from(result.bytes);
+        return sendJson(response, { status: 200, headers: { "content-type": result.contentType ?? "image/png", "content-length": body.length.toString() }, body });
       }
       if (path === "/webhooks/zalo") {
         if (request.method !== "POST") return sendJson(response, { status: 405, body: { ok: false, error: "Method not allowed" } });

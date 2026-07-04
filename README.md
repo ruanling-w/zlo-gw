@@ -167,6 +167,9 @@ POST /actions/:action
 POST /login/qr/start
 GET  /login/qr/status
 GET  /login/qr/image
+POST /connect/zalo/start
+GET  /connect/zalo/status
+GET  /connect/zalo/qr.png
 ```
 
 Supported action names:
