@@ -6,6 +6,7 @@ export type GatewayConfig = {
   host: string;
   port: number;
   token?: string;
+  eventsToken?: string;
   webhookToken?: string;
   webhooks: string[];
   allowedSenders: string[];

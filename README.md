@@ -2,7 +2,7 @@
 
 Standalone HTTP API gateway for Zalo personal accounts, built from the useful Zalo-specific parts of `monas-team/zaloclaw` and refocused away from the OpenClaw plugin runtime.
 
-The gateway owns the Zalo login/session, exposes local HTTP endpoints, and dispatches inbound Zalo messages to webhooks. Hermes, curl, n8n, or any custom app should connect to the gateway instead of talking directly to Zalo.
+The gateway owns the Zalo login/session, exposes local HTTP endpoints, and dispatches inbound Zalo messages to agent-agnostic consumers. Generic consumers can use webhooks; the preferred Hermes integration is the bundled Hermes Zalo platform plugin in `hermes-plugin/`, which subscribes to the gateway event stream and sends replies through the gateway HTTP API.
 
 ## Current Status
 
@@ -29,10 +29,12 @@ Known gaps:
 Zalo personal account
   <-> zca-js session/client
   <-> Zalo API Gateway HTTP server
-  <-> Hermes bridge / curl / n8n / custom webhook consumers
+       |-- HTTP API for send/read/action/policy/login
+       |-- outbound webhooks for n8n/custom consumers/legacy bridge
+       `-- SSE /events for Hermes Zalo platform plugin/local agents
 ```
 
-Important rule: the gateway is the only component that talks to Zalo. Hermes and other agents should only call the gateway or receive gateway webhooks.
+Important rule: the gateway is the only component that talks to Zalo. Hermes and other agents should only call the gateway, receive gateway webhooks, or subscribe to gateway events.
 
 ## Requirements
 
@@ -81,14 +83,16 @@ HERMES_TIMEOUT_MS=120000
 ZALO_GATEWAY_URL=http://127.0.0.1:8787
 ```
 
-Current allowlist fields are bridge-side placeholders:
+Gateway-side allowlists are enforced before inbound forwarding/event streaming and before outbound sends:
 
 ```bash
-HERMES_BRIDGE_ALLOWED_SENDERS=
-HERMES_BRIDGE_ALLOWED_THREADS=
+ZALO_GATEWAY_ALLOWED_SENDERS=
+ZALO_GATEWAY_ALLOWED_THREADS=
+ZALO_GATEWAY_DENY_SENDERS=
+ZALO_GATEWAY_DENY_THREADS=
 ```
 
-Use comma-separated Zalo sender IDs/thread IDs once allowlist enforcement is implemented. Until then, do not connect a real auto-reply agent to broad inbound traffic.
+Use comma-separated Zalo sender IDs/thread IDs. Keep allowlists narrow before connecting any auto-reply agent.
 
 ## Login And Status
 
@@ -157,7 +161,7 @@ Set the gateway webhook to the host-side connector:
 ZALO_GATEWAY_WEBHOOKS=http://host.docker.internal:8790/webhooks/zalo
 ```
 
-Run the Hermes connector on the host:
+Run the legacy Hermes connector on the host:
 
 ```bash
 HERMES_BRIDGE_HOST=127.0.0.1 \
@@ -166,7 +170,7 @@ ZALO_GATEWAY_URL=http://127.0.0.1:8787 \
 npm run connector:hermes
 ```
 
-This keeps Hermes CLI outside Docker and avoids coupling Zalo Gateway updates to Hermes internals.
+This keeps Hermes CLI outside Docker and avoids coupling Zalo Gateway updates to Hermes internals. The preferred Hermes path is the dedicated plugin in `hermes-plugin/`, which subscribes to gateway `GET /events` instead of receiving webhooks.
 
 ## API
 
@@ -190,6 +194,7 @@ POST /messages/send
 GET  /friends
 GET  /groups
 GET  /groups/:groupId/members
+GET  /events                  # SSE stream for native platform plugins/local agents
 GET  /policy
 PUT  /policy
 POST /policy/allowed-senders
@@ -293,7 +298,14 @@ curl -X POST http://127.0.0.1:8787/actions/get-thread-info \
   }'
 ```
 
-## Inbound Webhooks
+## Inbound Events
+
+The gateway is designed to support two inbound fan-out modes:
+
+- Webhooks: for n8n, custom receivers, and the legacy Hermes bridge.
+- SSE `GET /events`: for native Hermes platform plugins and local agents that should not expose a webhook server.
+
+### Webhooks
 
 When the gateway receives a Zalo message, it dispatches an event to every URL in `ZALO_GATEWAY_WEBHOOKS`.
 
@@ -320,6 +332,18 @@ Authorization: Bearer <ZALO_GATEWAY_WEBHOOK_TOKEN>
 ```
 
 The current dispatcher times out after 10 seconds. A timeout usually means the receiver is missing, blocked, slow, or listening on a different port.
+
+### SSE Stream
+
+Authenticated SSE is available for long-running subscribers:
+
+```http
+GET /events
+Authorization: Bearer <ZALO_GATEWAY_EVENTS_TOKEN or ZALO_GATEWAY_TOKEN>
+Accept: text/event-stream
+```
+
+The stream reuses the same payload shape as webhooks, emits `message.created` records for allowed inbound Zalo messages, sends heartbeat records, and keeps webhooks available for generic consumers.
 
 ## Allowlist Requirement
 
@@ -353,9 +377,9 @@ Implemented policy:
 - Reject unauthorized outbound `POST /messages/send` and send-like actions (`send`, `reply-message`, `add-reaction`, `mark-read`) with `403`.
 - Log allowed/blocked decisions without leaking message content by default.
 
-## Logging Plan
+## Logging Standard
 
-Current logs are plain text. The next logging cleanup should standardize event names and include correlation fields:
+Logs should use stable event names and redacted identifiers:
 
 ```text
 [zalo-api-gateway] event=gateway.listen host=127.0.0.1 port=8787

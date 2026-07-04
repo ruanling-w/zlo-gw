@@ -2,7 +2,7 @@
 
 ## Runbook
 
-Recommended production topology runs Zalo Gateway in Docker and Hermes connector on the host.
+Recommended production topology keeps Zalo Gateway in Docker and every agent integration outside the gateway. Generic consumers use webhooks; the preferred future Hermes path is a Hermes Zalo platform plugin that subscribes to gateway SSE and sends replies through the gateway HTTP API. The current Hermes connector remains a legacy fallback.
 
 Build and run the standalone gateway:
 
@@ -11,11 +11,13 @@ npm run build:all
 npm run gateway
 ```
 
-Run the connector where Hermes CLI is available:
+Run the legacy connector where Hermes CLI is available:
 
 ```bash
 npm run connector:hermes
 ```
+
+After the Hermes Zalo platform plugin exists, prefer enabling the plugin instead of running this connector. The plugin should connect to gateway `GET /events` and call `POST /messages/send` for replies.
 
 Expected log:
 
@@ -40,6 +42,12 @@ If the session is missing or expired:
 ```bash
 npm run zalo:login
 ```
+
+## Inbound Consumer Modes
+
+- Webhooks are implemented now through `ZALO_GATEWAY_WEBHOOKS` and work well for n8n, custom HTTP receivers, and the legacy Hermes bridge.
+- SSE `GET /events` is the next planned gateway feature for native Hermes platform plugins and local agents that should not expose a webhook server.
+- Both modes must receive the same normalized event shape and both must sit behind the same inbound allowlist policy.
 
 ## Webhook Timeout Noise
 
@@ -100,7 +108,7 @@ DELETE /policy/allowed-threads/:id
 Inbound policy:
 
 - If deny sender/thread matches, drop event.
-- If gateway-side allowlists are configured but empty, default is safe mode: no auto-forward to agent.
+- If gateway-side allowlists are configured but empty, default is safe mode: no auto-forward to webhooks or event streams.
 - Direct messages require `senderId` in `ZALO_GATEWAY_ALLOWED_SENDERS`.
 - Group messages require `threadId`/group ID in `ZALO_GATEWAY_ALLOWED_THREADS`.
 - Log `policy.inbound.allowed` or `policy.inbound.blocked` without message text.

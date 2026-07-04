@@ -28,6 +28,7 @@ export function loadGatewayConfig(env: GatewayEnv = process.env): GatewayConfig 
     host: env.ZALO_GATEWAY_HOST?.trim() || DEFAULT_HOST,
     port: parsePort(env.ZALO_GATEWAY_PORT),
     token: env.ZALO_GATEWAY_TOKEN?.trim() || undefined,
+    eventsToken: env.ZALO_GATEWAY_EVENTS_TOKEN?.trim() || undefined,
     webhookToken: env.ZALO_GATEWAY_WEBHOOK_TOKEN?.trim() || undefined,
     webhooks: parseWebhooks(env.ZALO_GATEWAY_WEBHOOKS),
     allowedSenders: parsePolicyList(env.ZALO_GATEWAY_ALLOWED_SENDERS),

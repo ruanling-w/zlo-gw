@@ -6,12 +6,14 @@ import { ZcaGatewayZaloClient, type GatewayZaloClient } from "./zalo-client.js";
 import { requireBearerToken } from "./auth.js";
 import { sendMessageResponse } from "./routes/messages.js";
 import { WebhookDispatcher } from "./webhooks.js";
+import { GatewayEventHub } from "./events.js";
 import { actionResponse } from "./routes/actions.js";
 import { friendsResponse, groupMembersResponse, groupsResponse } from "./routes/directory.js";
 import { decideInboundPolicy, logPolicyDecision } from "./policy.js";
 import { GatewayPolicyStore } from "./policy-store.js";
 import { policyListResponse, policyResponse } from "./routes/policy.js";
 import { loginQrImageResponse, loginQrStatusResponse, startLoginQrResponse } from "./routes/login.js";
+import { eventsResponse } from "./routes/events.js";
 
 export type GatewayServerOptions = {
   config?: GatewayConfig;
@@ -26,6 +28,7 @@ export type GatewayServer = {
   config: GatewayConfig;
   runtime: GatewayRuntimeInfo;
   webhookDispatcher: WebhookDispatcher;
+  eventHub: GatewayEventHub;
   policyStore: GatewayPolicyStore;
 };
 
@@ -82,6 +85,7 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
   const runtime = options.runtime ?? defaultRuntime();
   const zaloClient = options.zaloClient ?? new ZcaGatewayZaloClient();
   const webhookDispatcher = new WebhookDispatcher(config.webhooks, { token: config.webhookToken });
+  const eventHub = new GatewayEventHub();
   const policyStore = options.policyStore ?? new GatewayPolicyStore(config);
   const getZaloStatus = options.getZaloStatus ?? (async () => {
     const status = await zaloClient.status();
@@ -89,13 +93,14 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
   });
 
   const inboundSubscription = zaloClient.onMessage((event) => {
-    if (!webhookDispatcher.hasTargets()) return;
     const decision = decideInboundPolicy(event, policyStore.current());
     if (!decision.allowed) {
       logPolicyDecision("policy.inbound.blocked", decision, { threadId: event.threadId, senderId: event.senderId });
       return;
     }
     logPolicyDecision("policy.inbound.allowed", decision, { threadId: event.threadId, senderId: event.senderId });
+    eventHub.publishMessage(event);
+    if (!webhookDispatcher.hasTargets()) return;
     void webhookDispatcher.dispatch(event).then((result) => {
       for (const delivery of result.delivered) {
         if (!delivery.ok) {
@@ -116,6 +121,12 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
       if (path === "/version") {
         if (request.method !== "GET") return sendJson(response, methodNotAllowed());
         return sendJson(response, versionResponse(runtime));
+      }
+      if (path === "/events") {
+        if (request.method !== "GET") return sendJson(response, methodNotAllowed());
+        const result = eventsResponse(request, response, config, eventHub);
+        if (result) return sendJson(response, result);
+        return;
       }
       if (path === "/login/qr/start") {
         if (request.method !== "POST") return sendJson(response, methodNotAllowed());
@@ -196,9 +207,12 @@ export function createGatewayServer(options: GatewayServerOptions = {}): Gateway
     }
   });
 
-  server.once("close", () => inboundSubscription.dispose());
+  server.once("close", () => {
+    inboundSubscription.dispose();
+    eventHub.closeAll();
+  });
 
-  return { server, config, runtime, webhookDispatcher, policyStore };
+  return { server, config, runtime, webhookDispatcher, eventHub, policyStore };
 }
 
 export async function listenGateway(options: GatewayServerOptions = {}): Promise<GatewayServer> {

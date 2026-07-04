@@ -1,0 +1,34 @@
+name: zalo-platform
+label: Zalo
+kind: platform
+version: 0.1.0
+description: >
+  Zalo platform adapter for Hermes Agent. It connects to a standalone
+  Zalo API Gateway over authenticated SSE for inbound events and uses
+  the gateway HTTP API for replies. The gateway owns zca-js, QR login,
+  credentials, policy, and Zalo session lifecycle; this plugin only adapts
+  gateway events into Hermes platform sessions.
+author: ruanling
+requires_env:
+  - name: ZALO_GATEWAY_URL
+    description: "Base URL for the standalone Zalo API Gateway"
+    prompt: "Zalo Gateway URL"
+    password: false
+optional_env:
+  - name: ZALO_GATEWAY_TOKEN
+    description: "Bearer token for gateway HTTP API and fallback event auth"
+    prompt: "Zalo Gateway token"
+    password: true
+  - name: ZALO_GATEWAY_EVENTS_TOKEN
+    description: "Bearer token for GET /events when different from ZALO_GATEWAY_TOKEN"
+    prompt: "Zalo Gateway events token"
+    password: true
+  - name: ZALO_HOME_CHANNEL
+    description: "Default Zalo thread ID for cron / notification delivery"
+    prompt: "Zalo home thread ID"
+    password: false
+  - name: ZALO_HOME_CHANNEL_NAME
+    description: "Human label for the home channel"
+    prompt: "Zalo home channel display name"
+    password: false
+

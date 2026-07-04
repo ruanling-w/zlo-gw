@@ -2,8 +2,8 @@
 
 ## Current Objective
 
-- Goal: Adapt `monas-team/zaloclaw` into a standalone Zalo Personal API Gateway that Hermes and other clients can use over HTTP/webhooks.
-- Current status: Gateway MVP is implemented through messaging, webhooks, curated actions, Hermes bridge, real inbound listener, and gateway-side allowlist/logging cleanup.
+- Goal: Adapt `monas-team/zaloclaw` into a standalone Zalo Personal API Gateway that Hermes and other clients can use over HTTP, webhooks, and an SSE event stream.
+- Current status: Gateway MVP is implemented through messaging, webhooks, curated actions, legacy Hermes bridge, real inbound listener, and gateway-side allowlist/logging cleanup. The updated target is Zalo Gateway + native Hermes Zalo platform plugin.
 - Branch / commit: local clone of upstream `main`; no new branch or commit created yet.
 
 ## Completed This Session
@@ -39,6 +39,10 @@
 - [x] Split production runtime so Docker runs standalone Zalo Gateway and Hermes connector runs on the host.
 - [x] Added one-command app entrypoint, Dockerfile, QR login API endpoints, and cleaned production action registry to wired actions only.
 - [x] Standardized policy/webhook failure logs with event-style names and redacted sender/thread IDs.
+- [x] Confirmed current Hermes integration uses webhooks, not SSE, and updated the plan toward Zalo Gateway + Hermes Zalo Platform Plugin.
+- [x] Made Phase 6 `GET /events` SSE the next implementation target and Phase 7 Hermes platform plugin the preferred Hermes integration path.
+- [x] Implemented Phase 6 authenticated `GET /events` SSE with shared inbound policy, heartbeat, ring buffer, `Last-Event-ID` replay, and tests.
+- [x] Implemented initial Phase 7 Hermes Zalo Platform Plugin under `hermes-plugin/`; it registers platform `zalo`, subscribes to gateway SSE, and sends replies through gateway HTTP API.
 
 ## Verification Evidence
 
@@ -51,6 +55,9 @@
 | Status CLI build | `npm run zalo:status:build` | PASS | Status CLI bundles to `dist/zalo-status.js`. |
 | Harness validation | `node /home/ruanling/.hermes/skills/autonomous-ai-agents/harness-creator/scripts/validate-harness.mjs --target /home/ruanling/code/zalo-api-gateway` | PASS | Score 87/100 after latest plan update; bottleneck is missing codebase_intelligence docs/profile. |
 | Allowlist cleanup | `npm run typecheck && npm run test` | PASS | Typecheck passed; 20 test files, 155 tests passed after Hermes QR connection endpoints. |
+| SSE/plugin plan update | `./init.sh` | PASS | Typecheck passed; 20 test files, 155 tests passed after updating docs/state for Zalo Gateway + Hermes Zalo Platform Plugin. |
+| Phase 6 SSE full suite | `npm run typecheck && npm test` | PASS | Typecheck passed; 21 test files, 158 tests passed after adding `GET /events`. |
+| Phase 7 plugin full suite | `ZALO_GATEWAY_DATA_DIR=$(mktemp -d) ./init.sh` | PASS | Typecheck passed; 22 test files, 162 tests passed after preserving media attachments in the Hermes plugin and adding `send_voice` for Hermes auto-TTS voice replies. |
 
 ## Files Changed
 
@@ -113,13 +120,15 @@
 ## Decisions Made
 
 - Keep Hermes core untouched.
-- Build a standalone Zalo API Gateway before Hermes integration.
+- Keep Zalo Gateway independent and agent-agnostic; it should serve Hermes, n8n, curl, and custom agents.
+- Build a standalone Zalo API Gateway before native Hermes integration.
 - Reuse `zaloclaw` MIT-licensed Zalo client/action logic where practical.
 - Keep OpenClaw code only as legacy reference under `legacy/openclaw/`; maintained runtime path should be Zalo gateway focused.
 - Primary docs should describe Zalo API Gateway, not OpenClaw plugin usage.
-- Start with health/version, messaging, webhook, and curated action APIs instead of porting all 147 actions.
-- Track work as phases in `feature_list.json`, with only `phase-0-harness-baseline` active now.
-- Gateway-side allowlist and structured logging now exist for inbound webhooks, `/messages/send`, and send-like curated actions.
+- Keep webhooks for generic consumers and the legacy Hermes bridge.
+- Add gateway SSE `GET /events` for the native Hermes Zalo platform plugin.
+- Track work as phases in `feature_list.json`; `phase-6-gateway-sse-events` is done and `phase-7-hermes-zalo-platform-plugin` is partial pending live Hermes smoke testing.
+- Gateway-side allowlist and structured logging now exist for inbound webhooks, SSE `/events`, `/messages/send`, and send-like curated actions.
 
 ## Blockers / Risks
 
@@ -136,6 +145,6 @@
 
 ## Recommended Next Step
 
-- Add focused policy tests if more actions become send-like or mutating.
-- Decide whether read-only directory/action endpoints should be scoped by the same allowlists.
-- Continue gateway hardening around rate limits, durable webhook retry/queueing, and production runbook details.
+- Install/symlink `hermes-plugin/` into `~/.hermes/plugins/platforms/zalo/` and run a live Hermes gateway smoke test with a running Zalo API Gateway.
+- Tighten plugin config/session behavior from live runtime errors, then mark Phase 7 done.
+- Keep the legacy webhook bridge available as fallback until plugin smoke tests pass end-to-end.

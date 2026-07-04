@@ -1,0 +1,1244 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-04T16:01:34.635Z",
+  "root": "/home/ruanling/code/zalo-api-gateway",
+  "stack": "typescript",
+  "packageManager": "npm",
+  "packageScripts": {
+    "build": "esbuild index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:sharp --packages=external",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "node dist/app.js",
+    "app": "tsx src/app/index.ts",
+    "app:build": "esbuild src/app/index.ts --bundle --platform=node --format=esm --outfile=dist/app.js --external:sharp --packages=external",
+    "build:all": "npm run typecheck && npm run test && npm run build && npm run app:build && npm run gateway:build && npm run bridge:hermes:build && npm run zalo:login:build && npm run zalo:status:build",
+    "gateway": "tsx src/gateway/index.ts",
+    "gateway:build": "esbuild src/gateway/index.ts --bundle --platform=node --format=esm --outfile=dist/gateway.js --external:sharp --packages=external",
+    "bridge:hermes": "tsx src/bridge/hermes/index.ts",
+    "bridge:hermes:build": "esbuild src/bridge/hermes/index.ts --bundle --platform=node --format=esm --outfile=dist/hermes-bridge.js --external:sharp --packages=external",
+    "connector:hermes": "npm run bridge:hermes",
+    "connector:hermes:build": "npm run bridge:hermes:build",
+    "zalo:login": "tsx src/cli/zalo-login.ts",
+    "zalo:status": "tsx src/cli/zalo-status.ts",
+    "zalo:login:build": "esbuild src/cli/zalo-login.ts --bundle --platform=node --format=esm --outfile=dist/zalo-login.js --external:sharp --packages=external",
+    "zalo:status:build": "esbuild src/cli/zalo-status.ts --bundle --platform=node --format=esm --outfile=dist/zalo-status.js --external:sharp --packages=external"
+  },
+  "verificationCommands": [
+    "npm run typecheck",
+    "npm test",
+    "npm run build"
+  ],
+  "codebaseMemory": {
+    "available": true,
+    "command": "codebase-memory-mcp",
+    "project": "home-ruanling-code-zalo-api-gateway",
+    "indexed": true,
+    "error": null,
+    "indexResult": {
+      "status": "indexed",
+      "nodes": 1570,
+      "edges": 3138,
+      "excluded": {
+        "dirs": [
+          "dist",
+          "run",
+          ".git",
+          "node_modules",
+          "src/env"
+        ],
+        "count": 5,
+        "truncated": false
+      },
+      "artifact_present": false
+    }
+  },
+  "languages": [
+    {
+      "language": "TypeScript",
+      "file_count": 86
+    },
+    {
+      "language": "YAML",
+      "file_count": 2
+    },
+    {
+      "language": "Python",
+      "file_count": 2
+    },
+    {
+      "language": "Bash",
+      "file_count": 1
+    },
+    {
+      "language": "HTML",
+      "file_count": 1
+    }
+  ],
+  "packages": [
+    {
+      "name": "gateway",
+      "node_count": 162,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "openclaw",
+      "node_count": 120,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "bridge",
+      "node_count": 41,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "features",
+      "node_count": 30,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "zalo_platform",
+      "node_count": 28,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "channel",
+      "node_count": 27,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "client",
+      "node_count": 26,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "config",
+      "node_count": 18,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "safety",
+      "node_count": 14,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "parsing",
+      "node_count": 13,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "zalo",
+      "node_count": 12,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "tools",
+      "node_count": 11,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "thread-queue",
+      "node_count": 5,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "media-ingestion",
+      "node_count": 4,
+      "fan_in": 0,
+      "fan_out": 0
+    },
+    {
+      "name": "types",
+      "node_count": 2,
+      "fan_in": 0,
+      "fan_out": 0
+    }
+  ],
+  "entrypoints": [
+    {
+      "name": "listZaloClawAccountIds",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.accounts.listZaloClawAccountIds",
+      "file": "legacy/openclaw/accounts.ts"
+    },
+    {
+      "name": "resolveDefaultZaloClawAccountId",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.accounts.resolveDefaultZaloClawAccountId",
+      "file": "legacy/openclaw/accounts.ts"
+    },
+    {
+      "name": "checkZaloClawAuthenticated",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.accounts.checkZaloClawAuthenticated",
+      "file": "legacy/openclaw/accounts.ts"
+    },
+    {
+      "name": "resolveZaloClawAccount",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.accounts.resolveZaloClawAccount",
+      "file": "legacy/openclaw/accounts.ts"
+    },
+    {
+      "name": "resolveZaloClawAccountSync",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.accounts.resolveZaloClawAccountSync",
+      "file": "legacy/openclaw/accounts.ts"
+    },
+    {
+      "name": "listEnabledZaloClawAccounts",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.accounts.listEnabledZaloClawAccounts",
+      "file": "legacy/openclaw/accounts.ts"
+    },
+    {
+      "name": "getZaloClawUserInfo",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.accounts.getZaloClawUserInfo",
+      "file": "legacy/openclaw/accounts.ts"
+    },
+    {
+      "name": "monitorZaloClawProvider",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.monitor.monitorZaloClawProvider",
+      "file": "legacy/openclaw/monitor.ts"
+    },
+    {
+      "name": "setZaloClawRuntime",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.runtime.setZaloClawRuntime",
+      "file": "legacy/openclaw/runtime.ts"
+    },
+    {
+      "name": "getZaloClawRuntime",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.runtime.getZaloClawRuntime",
+      "file": "legacy/openclaw/runtime.ts"
+    },
+    {
+      "name": "collectZaloClawStatusIssues",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.status-issues.collectZaloClawStatusIssues",
+      "file": "legacy/openclaw/status-issues.ts"
+    },
+    {
+      "name": "loadHermesBridgeConfig",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.bridge.hermes.config.loadHermesBridgeConfig",
+      "file": "src/bridge/hermes/config.ts"
+    },
+    {
+      "name": "createHermesBridgeServer",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.bridge.hermes.server.createHermesBridgeServer",
+      "file": "src/bridge/hermes/server.ts"
+    },
+    {
+      "name": "listenHermesBridge",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.bridge.hermes.server.listenHermesBridge",
+      "file": "src/bridge/hermes/server.ts"
+    },
+    {
+      "name": "downloadFileFromUrl",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.channel.file-downloader.downloadFileFromUrl",
+      "file": "src/channel/file-downloader.ts"
+    },
+    {
+      "name": "downloadFilesFromUrls",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.channel.file-downloader.downloadFilesFromUrls",
+      "file": "src/channel/file-downloader.ts"
+    },
+    {
+      "name": "downloadImageFromUrl",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.channel.image-downloader.downloadImageFromUrl",
+      "file": "src/channel/image-downloader.ts"
+    },
+    {
+      "name": "downloadImagesFromUrls",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.channel.image-downloader.downloadImagesFromUrls",
+      "file": "src/channel/image-downloader.ts"
+    },
+    {
+      "name": "probeZaloClaw",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.channel.probe.probeZaloClaw",
+      "file": "src/channel/probe.ts"
+    },
+    {
+      "name": "markdownToZaloStyles",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.channel.send.markdownToZaloStyles",
+      "file": "src/channel/send.ts"
+    }
+  ],
+  "routes": [
+    {
+      "method": "",
+      "path": "/etc/passwd",
+      "handler": ""
+    },
+    {
+      "method": "",
+      "path": "/root/.ssh/id_rsa",
+      "handler": ""
+    },
+    {
+      "method": "",
+      "path": "/tmp/../etc/passwd",
+      "handler": ""
+    },
+    {
+      "method": "",
+      "path": "/proc/self/environ",
+      "handler": ""
+    },
+    {
+      "method": "",
+      "path": "/var/run/secrets/kubernetes.io",
+      "handler": ""
+    },
+    {
+      "method": "",
+      "path": "/login/qr/start",
+      "handler": ""
+    },
+    {
+      "method": "",
+      "path": "/login/qr/status",
+      "handler": ""
+    },
+    {
+      "method": "",
+      "path": "/home/user/file.txt",
+      "handler": ""
+    },
+    {
+      "method": "",
+      "path": "/tmp/image.jpg",
+      "handler": ""
+    },
+    {
+      "method": "",
+      "path": "/home/user/project/file.ts",
+      "handler": ""
+    },
+    {
+      "method": "",
+      "path": "/root/.config",
+      "handler": ""
+    },
+    {
+      "method": "",
+      "path": "/home/user/test",
+      "handler": ""
+    }
+  ],
+  "hotspots": [
+    {
+      "name": "error",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.actions.error",
+      "fan_in": 29
+    },
+    {
+      "name": "getApi",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.client.zalo-client.getApi",
+      "fan_in": 28
+    },
+    {
+      "name": "log",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.monitor.log",
+      "fan_in": 19
+    },
+    {
+      "name": "json",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.actions.json",
+      "fan_in": 16
+    },
+    {
+      "name": "json",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.login.json",
+      "fan_in": 13
+    },
+    {
+      "name": "getZaloClawConfig",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.config.config-manager.getZaloClawConfig",
+      "fan_in": 13
+    },
+    {
+      "name": "isRecord",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.actions.isRecord",
+      "fan_in": 11
+    },
+    {
+      "name": "getGroupInfo",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.actions.getGroupInfo",
+      "fan_in": 10
+    },
+    {
+      "name": "requiredString",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.actions.requiredString",
+      "fan_in": 10
+    },
+    {
+      "name": "hasStoredCredentials",
+      "qualified_name": "home-ruanling-code-zalo-api-gateway.src.client.zalo-client.hasStoredCredentials",
+      "fan_in": 10
+    }
+  ],
+  "layers": [
+    {
+      "name": "",
+      "layer": "api",
+      "reason": "has HTTP route definitions"
+    },
+    {
+      "name": "bridge",
+      "layer": "internal",
+      "reason": "fan-in=0, fan-out=0"
+    },
+    {
+      "name": "channel",
+      "layer": "internal",
+      "reason": "fan-in=6, fan-out=12"
+    },
+    {
+      "name": "cli",
+      "layer": "entry",
+      "reason": "has entry points, only outbound calls"
+    },
+    {
+      "name": "client",
+      "layer": "core",
+      "reason": "high fan-in (60 in, 0 out)"
+    },
+    {
+      "name": "config",
+      "layer": "api",
+      "reason": "has HTTP route definitions"
+    },
+    {
+      "name": "gateway",
+      "layer": "core",
+      "reason": "high fan-in (24 in, 17 out)"
+    },
+    {
+      "name": "io",
+      "layer": "api",
+      "reason": "has HTTP route definitions"
+    },
+    {
+      "name": "jpg",
+      "layer": "api",
+      "reason": "has HTTP route definitions"
+    },
+    {
+      "name": "openclaw",
+      "layer": "entry",
+      "reason": "has entry points, only outbound calls"
+    },
+    {
+      "name": "ssh/id_rsa",
+      "layer": "api",
+      "reason": "has HTTP route definitions"
+    },
+    {
+      "name": "tools",
+      "layer": "entry",
+      "reason": "only outbound calls"
+    },
+    {
+      "name": "ts",
+      "layer": "api",
+      "reason": "has HTTP route definitions"
+    },
+    {
+      "name": "txt",
+      "layer": "api",
+      "reason": "has HTTP route definitions"
+    }
+  ],
+  "clusters": [
+    {
+      "id": 3,
+      "label": "src",
+      "members": 40,
+      "cohesion": 0.7333333333333333,
+      "top_nodes": [
+        "createGatewayServer",
+        "MockGatewayZaloClient",
+        "requireBearerToken",
+        "loadGatewayConfig",
+        "actionResponse"
+      ],
+      "packages": [
+        "src",
+        "tests"
+      ],
+      "edge_types": [
+        "CALLS"
+      ]
+    },
+    {
+      "id": 16,
+      "label": "src",
+      "members": 37,
+      "cohesion": 0.6746987951807228,
+      "top_nodes": [
+        "log",
+        "hasStoredCredentials",
+        "getCredentialsPath",
+        "loginWithCredentials",
+        "main"
+      ],
+      "packages": [
+        "src",
+        "legacy"
+      ],
+      "edge_types": [
+        "CALLS"
+      ]
+    },
+    {
+      "id": 19,
+      "label": "src",
+      "members": 37,
+      "cohesion": 0.6833333333333333,
+      "top_nodes": [
+        "startListener",
+        "monitorZaloClawProvider",
+        "#processNext",
+        "handleGroupEvent",
+        "removePendingRequest"
+      ],
+      "packages": [
+        "src",
+        "legacy"
+      ],
+      "edge_types": [
+        "CALLS"
+      ]
+    },
+    {
+      "id": 0,
+      "label": "src",
+      "members": 32,
+      "cohesion": 0.72,
+      "top_nodes": [
+        "dispatch",
+        "getZaloClawConfig",
+        "updateZaloClawConfig",
+        "sendSticker",
+        "addToDenyFrom"
+      ],
+      "packages": [
+        "src"
+      ],
+      "edge_types": [
+        "CALLS"
+      ]
+    },
+    {
+      "id": 35,
+      "label": "src",
+      "members": 30,
+      "cohesion": 0.8,
+      "top_nodes": [
+        "error",
+        "json",
+        "checkOutbound",
+        "isRecord",
+        "requiredString"
+      ],
+      "packages": [
+        "src"
+      ],
+      "edge_types": [
+        "CALLS"
+      ]
+    },
+    {
+      "id": 1,
+      "label": "src",
+      "members": 28,
+      "cohesion": 0.5277777777777778,
+      "top_nodes": [
+        "getApi",
+        "getGroupInfo",
+        "loadGroupMemberIndex",
+        "sendLink",
+        "getGroupMembers"
+      ],
+      "packages": [
+        "src",
+        "tests",
+        "legacy"
+      ],
+      "edge_types": [
+        "CALLS"
+      ]
+    },
+    {
+      "id": 5,
+      "label": "src",
+      "members": 27,
+      "cohesion": 0.8484848484848485,
+      "top_nodes": [
+        "createHermesBridgeServer",
+        "process",
+        "gatewayJson",
+        "loadHermesBridgeConfig",
+        "startBridge"
+      ],
+      "packages": [
+        "tests",
+        "src"
+      ],
+      "edge_types": [
+        "CALLS"
+      ]
+    },
+    {
+      "id": 18,
+      "label": "legacy",
+      "members": 26,
+      "cohesion": 0.6326530612244898,
+      "top_nodes": [
+        "processMessage",
+        "deliverZaloClawReply",
+        "addReaction",
+        "logVerbose",
+        "isUserDeniedInGroup"
+      ],
+      "packages": [
+        "src",
+        "legacy"
+      ],
+      "edge_types": [
+        "CALLS"
+      ]
+    },
+    {
+      "id": 14,
+      "label": "hermes-plugin",
+      "members": 25,
+      "cohesion": 0.8205128205128205,
+      "top_nodes": [
+        "error",
+        "policyResponse",
+        "policyListResponse",
+        "_handle_sse_record",
+        "json"
+      ],
+      "packages": [
+        "src",
+        "hermes-plugin"
+      ],
+      "edge_types": [
+        "CALLS"
+      ]
+    },
+    {
+      "id": 24,
+      "label": "src",
+      "members": 24,
+      "cohesion": 0.6808510638297872,
+      "top_nodes": [
+        "downloadImageFromUrl",
+        "update",
+        "downloadFileFromUrl",
+        "add",
+        "downloadInboundMedia"
+      ],
+      "packages": [
+        "legacy",
+        "src"
+      ],
+      "edge_types": [
+        "CALLS"
+      ]
+    },
+    {
+      "id": 4,
+      "label": "src",
+      "members": 19,
+      "cohesion": 0.5263157894736842,
+      "top_nodes": [
+        "sendMessageZaloClaw",
+        "sendMessage",
+        "checkInjection",
+        "resolveOutboundMentions",
+        "uploadAndSendLocalImage"
+      ],
+      "packages": [
+        "src"
+      ],
+      "edge_types": [
+        "CALLS"
+      ]
+    },
+    {
+      "id": 59,
+      "label": "legacy",
+      "members": 14,
+      "cohesion": 0.8666666666666667,
+      "top_nodes": [
+        "resolveZaloClawAccountSync",
+        "promptZaloClawAllowFrom",
+        "listZaloClawAccountIds",
+        "mergeZaloClawAccountConfig",
+        "resolveZaloClawAccount"
+      ],
+      "packages": [
+        "legacy"
+      ],
+      "edge_types": [
+        "CALLS"
+      ]
+    }
+  ],
+  "criticalSymbols": [
+    {
+      "query": ".*Provider.*",
+      "pattern": ".*Provider.*",
+      "results": [
+        {
+          "name": "monitorZaloClawProvider",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.monitor.monitorZaloClawProvider",
+          "label": "Function",
+          "file_path": "legacy/openclaw/monitor.ts",
+          "in_degree": 2,
+          "out_degree": 10,
+          "complexity": 72,
+          "cognitive": 247,
+          "is_entry_point": true
+        }
+      ]
+    },
+    {
+      "query": ".*Adapter.*",
+      "pattern": ".*Adapter.*",
+      "results": [
+        {
+          "name": "ZaloPlatformAdapter",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.hermes-plugin.zalo_platform.adapter.ZaloPlatformAdapter",
+          "label": "Class",
+          "file_path": "hermes-plugin/zalo_platform/adapter.py",
+          "in_degree": 1,
+          "out_degree": 0,
+          "complexity": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "adapter",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.tests.hermes-plugin-zalo.test.adapter",
+          "label": "Variable",
+          "file_path": "tests/hermes-plugin-zalo.test.ts",
+          "in_degree": 1,
+          "out_degree": 0,
+          "complexity": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "adapter.py",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.hermes-plugin.zalo_platform.adapter.__file__",
+          "label": "File",
+          "file_path": "hermes-plugin/zalo_platform/adapter.py",
+          "in_degree": 0,
+          "out_degree": 0
+        },
+        {
+          "name": "hermes-plugin/zalo_platform/adapter.py",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.hermes-plugin.zalo_platform.adapter",
+          "label": "Module",
+          "file_path": "hermes-plugin/zalo_platform/adapter.py",
+          "in_degree": 0,
+          "out_degree": 8,
+          "complexity": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "zaloClawOnboardingAdapter",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.onboarding.zaloClawOnboardingAdapter",
+          "label": "Variable",
+          "file_path": "legacy/openclaw/onboarding.ts",
+          "in_degree": 0,
+          "out_degree": 0,
+          "complexity": 0,
+          "is_entry_point": false
+        }
+      ]
+    },
+    {
+      "query": "error",
+      "pattern": "error",
+      "results": [
+        {
+          "name": "SendMessageError",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.messages.SendMessageError",
+          "label": "Type",
+          "file_path": "src/gateway/routes/messages.ts",
+          "in_degree": 0,
+          "out_degree": 0,
+          "complexity": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "_FatalStreamError",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.hermes-plugin.zalo_platform.adapter._FatalStreamError",
+          "label": "Class",
+          "file_path": "hermes-plugin/zalo_platform/adapter.py",
+          "in_degree": 2,
+          "out_degree": 0,
+          "complexity": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "error",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.policy.error",
+          "label": "Function",
+          "file_path": "src/gateway/routes/policy.ts",
+          "in_degree": 6,
+          "out_degree": 2,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "error",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.directory.error",
+          "label": "Function",
+          "file_path": "src/gateway/routes/directory.ts",
+          "in_degree": 3,
+          "out_degree": 2,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "error",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.actions.error",
+          "label": "Function",
+          "file_path": "src/gateway/routes/actions.ts",
+          "in_degree": 31,
+          "out_degree": 2,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "error",
+          "qualified_name": "__channel__socketio__error",
+          "label": "Channel",
+          "file_path": "",
+          "in_degree": 0,
+          "out_degree": 0
+        },
+        {
+          "name": "onError",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.monitor.onError",
+          "label": "Function",
+          "file_path": "legacy/openclaw/monitor.ts",
+          "in_degree": 0,
+          "out_degree": 0,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "onError",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.tests.thread-queue.test.onError",
+          "label": "Function",
+          "file_path": "tests/thread-queue.test.ts",
+          "in_degree": 0,
+          "out_degree": 0,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "onRecordError",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.monitor.onRecordError",
+          "label": "Function",
+          "file_path": "legacy/openclaw/monitor.ts",
+          "in_degree": 0,
+          "out_degree": 0,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "onStartError",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.monitor.onStartError",
+          "label": "Function",
+          "file_path": "legacy/openclaw/monitor.ts",
+          "in_degree": 0,
+          "out_degree": 0,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        }
+      ]
+    },
+    {
+      "query": "getApi",
+      "pattern": "getApi",
+      "results": [
+        {
+          "name": "getApi",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.client.zalo-client.getApi",
+          "label": "Function",
+          "file_path": "src/client/zalo-client.ts",
+          "in_degree": 28,
+          "out_degree": 4,
+          "complexity": 3,
+          "cognitive": 3,
+          "is_entry_point": true
+        },
+        {
+          "name": "getApiSync",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.client.zalo-client.getApiSync",
+          "label": "Function",
+          "file_path": "src/client/zalo-client.ts",
+          "in_degree": 0,
+          "out_degree": 1,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": true
+        }
+      ]
+    },
+    {
+      "query": "json",
+      "pattern": "json",
+      "results": [
+        {
+          "name": "JsonResponse",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.types.JsonResponse",
+          "label": "Type",
+          "file_path": "src/gateway/types.ts",
+          "in_degree": 0,
+          "out_degree": 0,
+          "complexity": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "feature_list.json",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.feature_list.__file__",
+          "label": "File",
+          "file_path": "feature_list.json",
+          "in_degree": 0,
+          "out_degree": 0
+        },
+        {
+          "name": "feature_list.json",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.feature_list",
+          "label": "Module",
+          "file_path": "feature_list.json",
+          "in_degree": 0,
+          "out_degree": 0,
+          "complexity": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "gatewayJson",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.bridge.hermes.zalo-gateway-client.HttpZaloGatewayClient.gatewayJson",
+          "label": "Method",
+          "file_path": "src/bridge/hermes/zalo-gateway-client.ts",
+          "in_degree": 2,
+          "out_degree": 2,
+          "complexity": 3,
+          "cognitive": 5,
+          "is_entry_point": false
+        },
+        {
+          "name": "json",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.policy.json",
+          "label": "Function",
+          "file_path": "src/gateway/routes/policy.ts",
+          "in_degree": 6,
+          "out_degree": 1,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "json",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.login.json",
+          "label": "Function",
+          "file_path": "src/gateway/routes/login.ts",
+          "in_degree": 13,
+          "out_degree": 1,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "json",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.directory.json",
+          "label": "Function",
+          "file_path": "src/gateway/routes/directory.ts",
+          "in_degree": 4,
+          "out_degree": 1,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "json",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.actions.json",
+          "label": "Function",
+          "file_path": "src/gateway/routes/actions.ts",
+          "in_degree": 16,
+          "out_degree": 1,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "jsonHeaders",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.bridge.hermes.zalo-gateway-client.HttpZaloGatewayClient.jsonHeaders",
+          "label": "Method",
+          "file_path": "src/bridge/hermes/zalo-gateway-client.ts",
+          "in_degree": 2,
+          "out_degree": 1,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        },
+        {
+          "name": "legacy/openclaw/openclaw.plugin.json",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.legacy.openclaw.openclaw.plugin",
+          "label": "Module",
+          "file_path": "legacy/openclaw/openclaw.plugin.json",
+          "in_degree": 0,
+          "out_degree": 0,
+          "complexity": 0,
+          "is_entry_point": false
+        }
+      ]
+    },
+    {
+      "query": "getZaloClawConfig",
+      "pattern": "getZaloClawConfig",
+      "results": [
+        {
+          "name": "getZaloClawConfig",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.config.config-manager.getZaloClawConfig",
+          "label": "Function",
+          "file_path": "src/config/config-manager.ts",
+          "in_degree": 13,
+          "out_degree": 1,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": true
+        }
+      ]
+    },
+    {
+      "query": "isRecord",
+      "pattern": "isRecord",
+      "results": [
+        {
+          "name": "isRecord",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.actions.isRecord",
+          "label": "Function",
+          "file_path": "src/gateway/routes/actions.ts",
+          "in_degree": 11,
+          "out_degree": 0,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        }
+      ]
+    },
+    {
+      "query": "getGroupInfo",
+      "pattern": "getGroupInfo",
+      "results": [
+        {
+          "name": "getGroupInfo",
+          "qualified_name": "home-ruanling-code-zalo-api-gateway.src.gateway.routes.actions.getGroupInfo",
+          "label": "Function",
+          "file_path": "src/gateway/routes/actions.ts",
+          "in_degree": 10,
+          "out_degree": 1,
+          "complexity": 0,
+          "cognitive": 0,
+          "is_entry_point": false
+        }
+      ]
+    }
+  ],
+  "testFiles": [
+    "tests/bridge/hermes/config-client.test.ts",
+    "tests/bridge/hermes/orchestrator.test.ts",
+    "tests/bridge/hermes/server.test.ts",
+    "tests/credentials.test.ts",
+    "tests/gateway/actions.test.ts",
+    "tests/gateway/auth-config.test.ts",
+    "tests/gateway/directory.test.ts",
+    "tests/gateway/events.test.ts",
+    "tests/gateway/health.test.ts",
+    "tests/gateway/messages.test.ts",
+    "tests/gateway/policy.test.ts",
+    "tests/gateway/webhooks.test.ts",
+    "tests/gateway/zalo-client.test.ts",
+    "tests/hermes-plugin-zalo.test.ts",
+    "tests/media-ingestion.test.ts",
+    "tests/mention-parser.test.ts",
+    "tests/message-dedup.test.ts",
+    "tests/output-filter.test.ts",
+    "tests/send.test.ts",
+    "tests/thread-queue.test.ts",
+    "tests/thread-sandbox.test.ts",
+    "tests/url-validator.test.ts"
+  ],
+  "riskAreas": [
+    {
+      "type": "high-fan-in-symbol",
+      "name": "error",
+      "reason": "fan-in 29"
+    },
+    {
+      "type": "high-fan-in-symbol",
+      "name": "getApi",
+      "reason": "fan-in 28"
+    },
+    {
+      "type": "high-fan-in-symbol",
+      "name": "log",
+      "reason": "fan-in 19"
+    },
+    {
+      "type": "high-fan-in-symbol",
+      "name": "json",
+      "reason": "fan-in 16"
+    },
+    {
+      "type": "high-fan-in-symbol",
+      "name": "json",
+      "reason": "fan-in 13"
+    },
+    {
+      "type": "high-fan-in-symbol",
+      "name": "getZaloClawConfig",
+      "reason": "fan-in 13"
+    },
+    {
+      "type": "high-fan-in-symbol",
+      "name": "isRecord",
+      "reason": "fan-in 11"
+    },
+    {
+      "type": "high-fan-in-symbol",
+      "name": "getGroupInfo",
+      "reason": "fan-in 10"
+    },
+    {
+      "type": "high-fan-in-symbol",
+      "name": "requiredString",
+      "reason": "fan-in 10"
+    },
+    {
+      "type": "high-fan-in-symbol",
+      "name": "hasStoredCredentials",
+      "reason": "fan-in 10"
+    },
+    {
+      "type": "api-routes",
+      "reason": "12 route nodes detected; route changes need auth/error contract checks."
+    }
+  ],
+  "recommendedGraphQueries": [
+    {
+      "purpose": "Architecture overview",
+      "tool": "get_architecture",
+      "args": {
+        "aspects": [
+          "all"
+        ]
+      }
+    },
+    {
+      "purpose": "Changed code impact",
+      "tool": "detect_changes",
+      "args": {}
+    },
+    {
+      "purpose": "API/error wrapper impact",
+      "tool": "search_graph",
+      "args": {
+        "name_pattern": ".*(apiHandler|handler|route).*"
+      }
+    },
+    {
+      "purpose": "Auth boundary impact",
+      "tool": "search_graph",
+      "args": {
+        "name_pattern": ".*(require.*Auth|auth).*"
+      }
+    },
+    {
+      "purpose": "Task/worker impact",
+      "tool": "search_graph",
+      "args": {
+        "name_pattern": ".*(Task|Worker|Queue|Job).*"
+      }
+    },
+    {
+      "purpose": "Inspect .*Provider.*",
+      "tool": "search_graph",
+      "args": {
+        "name_pattern": ".*Provider.*"
+      }
+    },
+    {
+      "purpose": "Inspect .*Adapter.*",
+      "tool": "search_graph",
+      "args": {
+        "name_pattern": ".*Adapter.*"
+      }
+    },
+    {
+      "purpose": "Inspect error",
+      "tool": "search_graph",
+      "args": {
+        "name_pattern": "error"
+      }
+    },
+    {
+      "purpose": "Inspect getApi",
+      "tool": "search_graph",
+      "args": {
+        "name_pattern": "getApi"
+      }
+    },
+    {
+      "purpose": "Inspect json",
+      "tool": "search_graph",
+      "args": {
+        "name_pattern": "json"
+      }
+    },
+    {
+      "purpose": "Inspect getZaloClawConfig",
+      "tool": "search_graph",
+      "args": {
+        "name_pattern": "getZaloClawConfig"
+      }
+    },
+    {
+      "purpose": "Inspect isRecord",
+      "tool": "search_graph",
+      "args": {
+        "name_pattern": "isRecord"
+      }
+    },
+    {
+      "purpose": "Inspect getGroupInfo",
+      "tool": "search_graph",
+      "args": {
+        "name_pattern": "getGroupInfo"
+      }
+    }
+  ],
+  "notes": []
+}

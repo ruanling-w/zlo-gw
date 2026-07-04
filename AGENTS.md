@@ -117,3 +117,14 @@ Before ending a session:
 - Require an API token for mutating endpoints.
 - Default inbound auto-forwarding/webhooks to explicit config only.
 - Add allowlists before enabling any auto-reply integration.
+
+
+## Codebase Intelligence
+
+Before editing non-trivial code:
+
+1. Use `codebase-memory-mcp` if available to inspect affected symbols, callers, and architecture.
+2. Start with `docs/CODEMAP.md`, `docs/ARCHITECTURE.md`, `docs/TESTING.md`, and `docs/RISK_AREAS.md`.
+3. Query graph results to choose files, then read the real source files before editing.
+4. Record graph findings, files inspected, and verification evidence in `progress.md`.
+5. Treat graph output as navigation, not proof; source files and tests remain authoritative.

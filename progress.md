@@ -117,8 +117,44 @@
 - Gateway-side allowlists now exist for inbound webhooks, `/messages/send`, and send/media-like curated actions.
 - Keep Hermes core untouched; integration remains external through bridge/plugin clients that call the gateway.
 
+## Architecture Plan Update - Zalo Gateway + Hermes Zalo Plugin
+
+- Confirmed current Hermes integration uses outbound webhooks, not SSE: `ZALO_GATEWAY_WEBHOOKS` points to the legacy Hermes bridge `POST /webhooks/zalo`, which calls Hermes CLI and replies through `POST /messages/send`.
+- Updated the target architecture so Zalo Gateway remains agent-agnostic and can serve Hermes, n8n, curl, and other agents.
+- New preferred Hermes path: a Hermes Zalo platform plugin installed under `~/.hermes/plugins/platforms/zalo/` subscribes to gateway `GET /events` SSE and replies through gateway HTTP APIs.
+- Legacy Hermes webhook bridge remains available as fallback/smoke-test path but is no longer the final integration target.
+- Updated `docs/GATEWAY_PLAN.md`, `feature_list.json`, `README.md`, `docs/OPERATIONS.md`, and `.env.example` to reflect the webhooks + SSE + Hermes plugin plan.
+- Verification after plan update: `./init.sh` passed; typecheck passed; 20 test files / 155 tests passed.
+
+## Phase 6 - Gateway SSE Event Stream
+
+- Implemented authenticated `GET /events` SSE with optional `ZALO_GATEWAY_EVENTS_TOKEN` falling back to `ZALO_GATEWAY_TOKEN`.
+- Added `GatewayEventHub` with `message.created` records, heartbeat records, in-memory ring buffer, and `Last-Event-ID` replay for retained records.
+- Wired inbound Zalo events so allowed events publish to SSE and webhooks, while denied events are blocked before either fan-out path.
+- Added `tests/gateway/events.test.ts` and updated config tests for `ZALO_GATEWAY_EVENTS_TOKEN`.
+- Verification: `npm run typecheck && npm test` passed; full suite passed with 21 test files / 158 tests.
+
+## Phase 7 - Hermes Zalo Platform Plugin
+
+- Inspected Hermes platform plugin API and bundled adapters, especially `ctx.register_platform(...)`, `BasePlatformAdapter`, and the ntfy streaming adapter.
+- Added initial plugin under `hermes-plugin/` with `plugin.yaml`, `zalo_platform/__init__.py`, `zalo_platform/adapter.py`, and README install/runtime docs.
+- The plugin registers platform `zalo`, subscribes to gateway `GET /events` over SSE, converts `message.created` records into Hermes `MessageEvent`, and sends replies through `POST /messages/send`.
+- Updated the plugin to treat Zalo Gateway policy as the upstream authorization boundary, removing Hermes env sender allowlists from plugin registration.
+- Added static contract coverage in `tests/hermes-plugin-zalo.test.ts` for manifest, registration, upstream auth, SSE, and send API wiring.
+- Verification: `ZALO_GATEWAY_DATA_DIR=$(mktemp -d) ./init.sh` passed; full suite passed with 22 test files / 162 tests after preserving Zalo media attachments in the Hermes plugin and adding `send_voice` for Hermes auto-TTS voice replies.
+
 ## Next Step
 
-- Add focused policy tests if more actions become send-like or mutating.
-- Review read-only directory/action endpoints to decide whether they should be scoped by the same allowlists.
-- Continue gateway hardening around rate limits, durable webhook retry/queueing, and production runbook details.
+- Run live Hermes gateway smoke testing with the plugin installed under `~/.hermes/plugins/platforms/zalo/` and a running Zalo API Gateway.
+- Tighten adapter behavior based on live Hermes startup/runtime errors, especially config auto-enable, session keying, and group reply metadata.
+- Keep the legacy webhook bridge available as fallback until plugin smoke tests pass end-to-end.
+
+
+## Codebase Graph Notes
+
+- Queries run:
+- Relevant symbols:
+- Files inspected:
+- Callers/callees:
+- Risk notes:
+- Verification selected:
